@@ -61,7 +61,8 @@ subroutine calculate_everything(uc, bs, dr, pd, qp, fc, mw, mem)
     integer, parameter :: manyatoms = 50
     real(r8), dimension(:, :, :, :), allocatable :: thermal_sigma
     real(r8), dimension(:), allocatable :: dy
-    real(r8), dimension(3, 3) :: m0
+    real(r8), dimension(3, 3) :: m0, m2
+    real(r8), dimension(3, 3, 3) :: m1
     real(r8), dimension(3) :: v0
     real(r8) :: Tdebye, nndist
     integer, dimension(:), allocatable :: di
@@ -186,7 +187,7 @@ subroutine calculate_everything(uc, bs, dr, pd, qp, fc, mw, mem)
     end if
 
     ! Weird angular momentum thing?
-    call dr%phonon_angular_momentum_matrix(qp, uc, 300.0_r8, m0, mw)
+    call dr%phonon_angular_momentum_matrix(qp, uc, 300.0_r8, m0, m1, m2, mw)
     if (mw%talk) then
         call lo_h5_store_data(m0, file_id, 'angular_momentum', lo_status, enhet='dunno')
     end if

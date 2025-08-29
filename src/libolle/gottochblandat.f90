@@ -17,6 +17,7 @@ public :: lo_return_unique_indices
 public :: lo_determ
 public :: lo_flattentensor
 public :: lo_outerproduct
+public :: lo_outer_outerproduct
 public :: lo_transposetensor
 public :: lo_chop
 ! Subroutines
@@ -148,6 +149,10 @@ end interface
 interface lo_outerproduct
     module procedure lo_real_outerproduct
     module procedure lo_complex_outerproduct
+end interface
+!> double outer products
+interface lo_outer_outerproduct
+    module procedure lo_real_outer_outerproduct
 end interface
 !> make tensors flat
 interface lo_flattentensor
@@ -371,6 +376,12 @@ interface
         complex(flyt), dimension(3), intent(in) :: a
         complex(flyt), dimension(3), intent(in) :: b
         complex(flyt), dimension(3,3) :: m
+    end function
+    module pure function lo_real_outer_outerproduct(a,b,c) result(m)
+        real(flyt), dimension(3), intent(in) :: a
+        real(flyt), dimension(3), intent(in) :: b
+        real(flyt), dimension(3), intent(in) :: c
+        real(flyt), dimension(3,3,3) :: m
     end function
     module pure function lo_determ_real(a) result(det)
         real(flyt), dimension(3,3), intent(in) :: a

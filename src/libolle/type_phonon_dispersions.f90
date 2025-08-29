@@ -9,8 +9,8 @@ use konstanter, only: r8, i8, lo_huge, lo_hugeint, lo_degenvector, lo_status, lo
                       lo_Hartree_to_Joule, lo_exitcode_physical, lo_imag, lo_time_s_to_au
 use gottochblandat, only: open_file, walltime, tochar, lo_trueNtimes, lo_classical_harmonic_oscillator_free_energy, &
                           lo_harmonic_oscillator_cv, lo_harmonic_oscillator_entropy, lo_harmonic_oscillator_free_energy, &
-                          lo_planck, lo_sqnorm, lo_progressbar_init, lo_progressbar, qsort, lo_outerproduct, lo_chop, &
-                          lo_symmetric_eigensystem_3x3matrix, lo_flattentensor, lo_unflatten_2tensor, &
+                          lo_planck, lo_sqnorm, lo_progressbar_init, lo_progressbar, qsort, lo_outerproduct, lo_outer_outerproduct,&
+                          lo_chop, lo_symmetric_eigensystem_3x3matrix, lo_flattentensor, lo_unflatten_2tensor, &
                           lo_linear_least_squares, lo_nullspace_coefficient_matrix, lo_identitymatrix, &
                           lo_real_pseudoinverse, lo_determ
 use mpi_wrappers, only: lo_mpi_helper, lo_stop_gracefully
@@ -865,7 +865,8 @@ pure function phonon_entropy(dr, temperature, modenum, sitenum) result(s)
 end function
 
 !> calculate phonon angular momentum matrix
-subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha, mw)
+subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
+                                          beta, torque, mw)
     !> dispersion relations
     class(lo_phonon_dispersions), intent(in) :: dr
     !> qpoint mesh
@@ -874,8 +875,12 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha, mw)
     type(lo_crystalstructure), intent(in) :: uc
     !> temperature
     real(r8), intent(in) :: temperature
-    !> displacement covariance matrix
+    !> displacement covariance matrix / angular momentum generation matrix
     real(r8), dimension(3, 3), intent(out) :: alpha
+    !> angular momentum transport matrix
+    real(r8), dimension(3, 3, 3), intent(out) :: beta
+    !> torque matrix (torque induced by temp. gradient)
+    real(r8), dimension(3, 3), intent(out) :: torque
     !> MPI helper
     type(lo_mpi_helper), intent(inout) :: mw
 
@@ -904,17 +909,23 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha, mw)
             havetau = .true.
         else
             havetau = .false.
+            WRITE(*,*) "Computing angular momentum matrices with fake tau"
         end if
     end block init
 
     ! Calculate actual angular momentum thingy
     calc: block
-        complex(r8), dimension(3) :: cv0, cv1, cv2
-        real(r8), dimension(3) :: v0, v1, w0, w1
-        real(r8) :: f0
+        complex(r8), dimension(3) :: angmom_cplx, eigdispl
+        real(r8), dimension(3, 3) :: alpha_contrib, torque_contrib
+        real(r8), dimension(3, 3, 3) :: beta_contrib
+        real(r8), dimension(3) :: angmom, angmom_sym, vel, vel_sym
+        real(r8) :: f0, f0_tau
         integer :: i, j, k, l, o
 
         alpha = 0.0_r8
+        beta = 0.0_r8
+        torque = 0.0_r8
+        ! WRITE(66,'(a)') "q-point red-coord, alpha/torque_xy, ~_yx, contrib_xy, ~_yx"
         l = 0
         do i = 1, qp%n_full_point
         do j = 1, dr%n_mode
@@ -923,50 +934,72 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha, mw)
             ! Skip acoustic
             if (dr%aq(i)%omega(j) .lt. lo_freqtol) cycle
             ! Get the weird rotation guy
-            cv0 = 0.0_r8
+            angmom_cplx = 0.0_r8
             do k = 1, uc%na
-                cv1 = dr%aq(i)%egv((k - 1)*3 + 1:k*3, j)
-                cv2 = matmul(Mx, cv1)
-                cv0(1) = cv0(1) + dot_product(cv1, cv2)
-                cv2 = matmul(My, cv1)
-                cv0(2) = cv0(2) + dot_product(cv1, cv2)
-                cv2 = matmul(Mz, cv1)
-                cv0(3) = cv0(3) + dot_product(cv1, cv2)
+                eigdispl = dr%aq(i)%egv((k - 1)*3 + 1:k*3, j)
+                angmom_cplx(1) = angmom_cplx(1) + dot_product(eigdispl, matmul(Mx, eigdispl))
+                angmom_cplx(2) = angmom_cplx(2) + dot_product(eigdispl, matmul(My, eigdispl))
+                angmom_cplx(3) = angmom_cplx(3) + dot_product(eigdispl, matmul(Mz, eigdispl))
             end do
             ! Now average over the small group. Seems sensible? Yes no maybe.
-            v0 = 0.0_r8
-            w0 = 0.0_r8
-            v1 = real(cv0)
-            w1 = dr%aq(i)%vel(:, j)
-            do k = 1, qp%ap(i)%n_invariant_operation
-                o = qp%ap(i)%invariant_operation(k)
-                v0 = v0 + matmul(uc%sym%op(o)%m, v1)
-                w0 = w0 + matmul(uc%sym%op(o)%m, w1)
-            end do
-            v0 = v0/real(qp%ap(i)%n_invariant_operation, r8)
-            w0 = w0/real(qp%ap(i)%n_invariant_operation, r8)
+            angmom = real(angmom_cplx)
+            vel = dr%aq(i)%vel(:, j)
+
+            if (.True.) then
+                angmom_sym = 0.0_r8
+                vel_sym = 0.0_r8
+                do k = 1, qp%ap(i)%n_invariant_operation
+                    o = qp%ap(i)%invariant_operation(k)
+                    angmom_sym = angmom_sym + matmul(uc%sym%op(o)%m, angmom)
+                    vel_sym    = vel_sym    + matmul(uc%sym%op(o)%m, vel)
+                end do
+                angmom_sym = angmom_sym/real(qp%ap(i)%n_invariant_operation, r8)
+                vel_sym = vel_sym/real(qp%ap(i)%n_invariant_operation, r8)
+            else
+                angmom_sym = angmom
+                vel_sym = vel
+            endif
+
 
             ! dn/dT
             f0 = lo_harmonic_oscillator_cv(temperature, dr%aq(i)%omega(j))/dr%aq(i)%omega(j)
 
             f0 = f0*qp%ap(i)%integration_weight
             if (havetau) then
-                ! This is divided by tau
+                ! Multiplication by tau
                 k = qp%ap(i)%irreducible_index
-                f0 = f0/(2.0_r8*dr%iq(k)%linewidth(j))
+                f0_tau = f0/(2.0_r8*dr%iq(k)%linewidth(j))
             else
-                ! This is divided by random constant number
-                f0 = f0*faketau
+                ! Multiplication by random constant number
+                f0_tau = f0*faketau
             end if
-            alpha = alpha + lo_outerproduct(v0, w0)*f0
+            ! I might have to reverse the order of the arguments in outerproduct
+            ! as it seems to flip them to obey some column/row-major conversion
+            ! for some reason..., this essantially flips the off-diag component
+            ! which may have opposite signs... (but that is not a real issue
+            ! for time being
+
+            ! alpha = alpha - lo_outerproduct(angmom_sym, vel_sym)*f0_tau
+            ! torque = torque - lo_outerproduct(angmom_sym, vel_sym)*f0
+            alpha_contrib = - lo_outerproduct(angmom_sym, vel_sym)*f0_tau
+            beta_contrib = - lo_outer_outerproduct(angmom_sym, vel_sym, vel_sym)*f0_tau
+            torque_contrib = - lo_outerproduct(angmom_sym, vel_sym)*f0
+            alpha = alpha + alpha_contrib
+            beta = beta + beta_contrib
+            torque = torque + torque_contrib
+            ! WRITE(66,'(3(f5.3,1x))') qp%ap(i)%r
+            ! WRITE(66,'(8x,3(3e16.7,1x),1x)') alpha(1,2), alpha(2,1), alpha_contrib(1,2), alpha_contrib(2,1)
+            ! WRITE(66,'(8x,3(3e16.7,1x),1x)') torque(1,2), torque(2,1), torque_contrib(1,2), torque_contrib(2,1)
         end do
         end do
         call mw%allreduce('sum', alpha)
         ! And finally scale with volume. I should really do a
         ! dimensionality analysis on this to figure out the unit.
         alpha = alpha/uc%volume
+        beta = beta/uc%volume
+        torque = torque/uc%volume
         f0 = norm2(alpha)
-        alpha = lo_chop(alpha, f0*1E-10_r8)
+        ! alpha = lo_chop(alpha, f0*1E-10_r8) ! we are no lumberjack
     end block calc
 end subroutine
 

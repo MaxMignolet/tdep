@@ -39,8 +39,10 @@ type lo_cumulative_kappa
     !> With boundary scattering
     real(r8), dimension(:), allocatable :: boundary_xaxis
     real(r8), dimension(:, :), allocatable :: boundary_kappa
-    !> angular momentum matrix
+    !> angular momentum matrices
     real(r8), dimension(3, 3) :: angmomalpha
+    real(r8), dimension(3, 3) :: angmom_torque
+    real(r8), dimension(3, 3, 3) :: angmombeta
     !> spectral angular momentum matrix
     real(r8), dimension(:, :), allocatable :: fq_angmom
     real(r8), dimension(:, :, :), allocatable :: fq_angmom_band
@@ -578,7 +580,8 @@ subroutine get_angular_momentum(mf, uc, qp, dr, pd, temperature, mw, mem)
     !> memory helper
     type(lo_mem_helper), intent(inout) :: mem
 
-    call dr%phonon_angular_momentum_matrix(qp, uc, temperature, mf%angmomalpha, mw)
+    call dr%phonon_angular_momentum_matrix(qp, uc, temperature, mf%angmomalpha,&
+                                           mf%angmombeta, mf%angmom_torque, mw)
     mf%angmomalpha = lo_chop(mf%angmomalpha, 1e-15_r8)
     call pd%spectral_angular_momentum(uc, qp, dr, temperature, mw, mem, spec_angmom=mf%fq_angmom, &
                                       spec_angmom_band=mf%fq_angmom_band, spec_angmom_atom=mf%fq_angmom_atom)
@@ -766,11 +769,11 @@ subroutine write_to_hdf5(mf, pd, uc, enhet, filename, mem)
     end do
     d3 = d3/unitfactor
     call h5%store_data(d3 / lo_bohr_to_m, h5%file_id, 'generating_angular_momentum_tensor_vs_frequency', &
-                       enhet='hbar/m/K', dimensions='xyz,xyz,frequency')
+                       enhet='hbar/m/K', dimensions='xyz,xyz,frequency') ! Wrong units!!!!!! Correct: hbar/m^-2/K
     call mem%deallocate(d3, persistent=.false., scalable=.false., file=__FILE__, line=__LINE__)
     ! Store just the tensor
     call h5%store_data(mf%angmomalpha, h5%file_id, 'generating_angular_momentum_tensor', &
-                       enhet='hbar/m/K', dimensions='xyz,xyz')
+                       enhet='hbar/m/K', dimensions='xyz,xyz') ! Wrong units!!!!!! Correct: hbar/m^-2/K
 
     call h5%close_file()
     call h5%destroy(__FILE__, __LINE__)

@@ -1,6 +1,6 @@
 #include "precompilerdefinitions"
 program thermal_conductivity
-use konstanter, only: r8, lo_temperaturetol, lo_status, lo_kappa_au_to_SI, lo_freqtol, lo_m_to_Bohr, lo_emu_to_amu
+use konstanter ! , only: r8, lo_temperaturetol, lo_status, lo_kappa_au_to_SI, lo_freqtol, lo_hbar_Joule, lo_bohr_to_m, lo_m_to_Bohr, lo_emu_to_amu
 use gottochblandat, only: walltime, tochar, open_file
 use mpi_wrappers, only: lo_mpi_helper
 use lo_memtracker, only: lo_mem_helper
@@ -199,6 +199,8 @@ end block get_scattering_rates
 
 blockkappa: block
     real(r8), dimension(3, 3) :: kappa_iter, kappa_offdiag, kappa_sma, m0
+    real(r8), dimension(3, 3) :: alpha_angmom, torque_angmom
+    real(r8), dimension(3, 3, 3) :: beta_angmom ! transport matrix
     real(r8) :: t0
     integer :: i, u, q1, b1
 
@@ -294,6 +296,27 @@ blockkappa: block
         close (u)
         write(*, *) ''
     end if
+
+    ! Computing phangmom generation and transport tensors here
+    ! No need for the cumulation thingy, I'm not a Belgian politician or what not
+    if (mw%talk) write(*,*) 'Hello there'
+    call dr%phonon_angular_momentum_matrix(qp, uc, opts%temperature, alpha_angmom, beta_angmom, torque_angmom, mw)
+    if (mw%talk) then
+        write(*,*) 'Angular momentum generation matrix: (units: hbar/bohr^⁻2/K)'
+        write(*, "(1x,3(3(f10.6,1x),1x))") alpha_angmom(:,:)
+        write(*,*) 'Angular momentum generation matrix: (units: Js/m^⁻2/K)'
+        write(*, "(1x,3(3(e14.6,1x),1x))") alpha_angmom(:,:) * lo_hbar_Joule / lo_bohr_to_m**2 ! / lo_time_au_to_s
+        write(*,*) 'Ang. mom. torque matrix: (units: hbar/fs/bohr^⁻2/K)'
+        write(*, "(1x,3(3(e16.8,1x),1x))") torque_angmom(:,:) / lo_time_au_to_fs
+        write(*,*) 'Ang. mom. torque matrix: (units: J/m^⁻2/K)'
+        write(*, "(1x,3(3(e14.6,1x),1x))") torque_angmom(:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2 ! / lo_time_au_to_s
+        write(*,*) 'Angular momentum transport matrix: (units: TODO)'
+        write(*, "(5x,3(3(a14,1x),1x))") "-xx", "-yx", "-zx", "-xy", "-yy", "-zy", "-xz", "-yz", "-zz"
+        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "x--", beta_angmom(1,:,:)
+        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "y--", beta_angmom(2,:,:)
+        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "z--", beta_angmom(3,:,:)
+    endif
+    if (mw%talk) write(*,*) 'General Kenobi'
 
     ! First we get the cumulative kappa with the mean free path
     if (mw%talk) write(*, *) '... computing cumulative kappa'

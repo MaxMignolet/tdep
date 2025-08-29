@@ -161,6 +161,30 @@ module pure function lo_complex_outerproduct(a,b) result(m)
     m(3,3)=conjg(a(3))*b(3)
 end function
 
+!> double outer product betweenn 3 real vectors of length 3
+module pure function lo_real_outer_outerproduct(a,b,c) result(m)
+    !> first vector
+    real(flyt), dimension(3), intent(in) :: a
+    !> second vector
+    real(flyt), dimension(3), intent(in) :: b
+    !> third vector
+    real(flyt), dimension(3), intent(in) :: c
+    !> cross product
+    real(flyt), dimension(3,3,3) :: m
+    !> some indices
+    integer :: i,j,k
+
+    ! not sure it's worth trying to optimize this
+    do k=1,3
+        do j=1,3
+            do i=1,3
+                m(i,j,k) = a(i)*b(j)*c(k)
+            end do
+        end do
+    end do
+
+end function
+
 !> Determinant of a 3x3 matrix, doubles
 module pure function lo_determ_real(a) result(det)
     !> 3x3 matrix
