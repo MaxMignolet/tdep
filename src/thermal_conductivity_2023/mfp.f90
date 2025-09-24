@@ -42,6 +42,8 @@ type lo_mfp_temperature
     real(r8), dimension(:, :, :), allocatable :: boundary_kappa
     !> angular momentum matrix
     real(r8), dimension(3, 3) :: angmomalpha
+    real(r8), dimension(3, 3) :: angmom_torque
+    real(r8), dimension(3, 3, 3) :: angmombeta
     !> spectral angular momentum matrix
     real(r8), dimension(:, :), allocatable :: fq_angmom
     real(r8), dimension(:, :, :), allocatable :: fq_angmom_band
@@ -434,7 +436,8 @@ subroutine get_cumulative_plots(mf, qp, dr, pd, uc, np, temperature, sigma, kapp
                            spec_kappa_band=mf%fq_kappa_band, spec_kappa_atom=mf%fq_kappa_atom)
 
     ! Then do the whole angular momentum guy.
-    call dr%phonon_angular_momentum_matrix(qp, uc, temperature, mf%angmomalpha, mw)
+    call dr%phonon_angular_momentum_matrix(qp, uc, temperature, mf%angmomalpha,&
+                                           mf%angmombeta, mf%angmom_torque, mw)
 
     call pd%spectral_angular_momentum(uc, qp, dr, temperature, mw, mem, spec_angmom=mf%fq_angmom, &
                                       spec_angmom_band=mf%fq_angmom_band, spec_angmom_atom=mf%fq_angmom_atom)
