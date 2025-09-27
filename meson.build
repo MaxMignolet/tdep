@@ -1,4 +1,6 @@
-project('tdep', 'fortran', 'c', 'cpp')
+project('tdep',
+        'fortran', 'c', 'cpp',
+        default_options: ['buildtype=custom', 'debug=true', 'optimization=3'])
 add_project_arguments('-cpp', language: 'fortran')
 add_project_arguments('-ffree-line-length-none', language: 'fortran')
 # add_project_arguments('-std=f2008', language: 'fortran')
