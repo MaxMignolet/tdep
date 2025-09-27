@@ -307,7 +307,7 @@ blockkappa: block
         write(*,*) 'Angular momentum generation matrix: (units: Js/m^⁻2/K)'
         write(*, "(1x,3(3(e14.6,1x),1x))") alpha_angmom(:,:) * lo_hbar_Joule / lo_bohr_to_m**2 ! / lo_time_au_to_s
         write(*,*) 'Ang. mom. torque matrix: (units: hbar/fs/bohr^⁻2/K)'
-        write(*, "(1x,3(3(e16.8,1x),1x))") torque_angmom(:,:) / lo_time_au_to_fs
+        write(*, "(1x,3(3(e14.8,1x),1x))") torque_angmom(:,:) / lo_time_au_to_fs
         write(*,*) 'Ang. mom. torque matrix: (units: J/m^⁻2/K)'
         write(*, "(1x,3(3(e14.6,1x),1x))") torque_angmom(:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2 ! / lo_time_au_to_s
         write(*,*) 'Angular momentum transport matrix: (units: TODO)'

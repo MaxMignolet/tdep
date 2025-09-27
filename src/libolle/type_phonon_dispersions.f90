@@ -926,6 +926,9 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
         beta = 0.0_r8
         torque = 0.0_r8
         ! WRITE(66,'(a)') "q-point red-coord, alpha/torque_xy, ~_yx, contrib_xy, ~_yx"
+        ! do i = 1, dr%n_full_qpoint
+        !     if (mw%talk) WRITE(*,'(i2,x,6(i1,x))') i, dr%aq(i)%degeneracy(1:6)
+        ! end do
         l = 0
         do i = 1, qp%n_full_point
         do j = 1, dr%n_mode
@@ -933,6 +936,12 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
             if (mod(l, mw%n) .ne. mw%r) cycle
             ! Skip acoustic
             if (dr%aq(i)%omega(j) .lt. lo_freqtol) cycle
+            ! Skip degen modes for now (for debug)
+            if (dr%aq(i)%degeneracy(j) /= 1) then
+            ! if (dr%aq(i)%degeneracy(j) == 1) then
+                ! WRITE(*,*) "I skipped a mode", i, j
+                cycle
+            end if
             ! Get the weird rotation guy
             angmom_cplx = 0.0_r8
             do k = 1, uc%na
@@ -945,7 +954,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
             angmom = real(angmom_cplx)
             vel = dr%aq(i)%vel(:, j)
 
-            if (.True.) then
+            if (.False.) then
                 angmom_sym = 0.0_r8
                 vel_sym = 0.0_r8
                 do k = 1, qp%ap(i)%n_invariant_operation
@@ -964,7 +973,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
             ! dn/dT
             f0 = lo_harmonic_oscillator_cv(temperature, dr%aq(i)%omega(j))/dr%aq(i)%omega(j)
 
-            f0 = f0*qp%ap(i)%integration_weight
+            ! f0 = f0*qp%ap(i)%integration_weight ! do we have to multiply by the weights when going over the whole BZ??
             if (havetau) then
                 ! Multiplication by tau
                 k = qp%ap(i)%irreducible_index
