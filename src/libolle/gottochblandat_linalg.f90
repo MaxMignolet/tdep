@@ -161,7 +161,7 @@ module pure function lo_complex_outerproduct(a,b) result(m)
     m(3,3)=conjg(a(3))*b(3)
 end function
 
-!> double outer product betweenn 3 real vectors of length 3
+!> double outer product between 3 real vectors of length 3
 module pure function lo_real_outer_outerproduct(a,b,c) result(m)
     !> first vector
     real(flyt), dimension(3), intent(in) :: a
