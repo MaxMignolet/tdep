@@ -1,6 +1,8 @@
 #include "precompilerdefinitions"
 module velocitydos
-use konstanter, only: r8, lo_status, lo_tiny, lo_tol, lo_sqtol, lo_Hartree_to_eV, lo_bohr_to_A, lo_kb_eV, &
+use konstanter, only: r8, lo_status, lo_tiny, lo_tol, lo_sqtol, lo_Hartree_to_eV, &
+                      lo_bohr_to_A, lo_bohr_to_m, lo_groupvel_hartreebohr_to_ms, &
+                      lo_hbar_Joule, lo_kb_eV, lo_time_au_to_s, &
                       lo_huge, lo_pressure_HartreeBohr_to_GPa, lo_freqtol
 use gottochblandat, only: open_file, lo_planck, lo_gauss, tochar, lo_frobnorm, lo_sqnorm, lo_linspace, &
                           lo_symmetric_eigensystem_3x3matrix, lo_trapezoid_integration, lo_outerproduct, &
@@ -188,8 +190,16 @@ subroutine calculate_everything(uc, bs, dr, pd, qp, fc, mw, mem)
 
     ! Weird angular momentum thing?
     call dr%phonon_angular_momentum_matrix(qp, uc, 300.0_r8, m0, m1, m2, mw)
+    m0(:,:)   = m0 * lo_hbar_Joule / lo_bohr_to_m**2
+    m1(:,:,:) = m1 * lo_hbar_Joule * lo_groupvel_hartreebohr_to_ms / lo_bohr_to_m**2
+    m2(:,:)   = m2 * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2
     if (mw%talk) then
-        call lo_h5_store_data(m0, file_id, 'angular_momentum', lo_status, enhet='dunno')
+        ! Units are: L density / gradT:  Js/m^-3 /(K/m)
+        call lo_h5_store_data(m0, file_id, 'angular_momentum_alpha', lo_status, enhet='Js/m^⁻2/K')
+        ! Units are: L density * velocity / gradT:  Js/m^-3 /s /(K/m)
+        call lo_h5_store_data(m1, file_id, 'angular_momentum_beta', lo_status, enhet='J/m/K')
+        ! Units are: torque / gradT, :  Js/m^-3 /(K/m) (torque = L density / time)
+        call lo_h5_store_data(m2, file_id, 'angular_momentum_torque', lo_status, enhet='J/m^⁻2/K')
     end if
 
     ! And close the output file
