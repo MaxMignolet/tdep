@@ -973,7 +973,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
             ! dn/dT
             f0 = lo_harmonic_oscillator_cv(temperature, dr%aq(i)%omega(j))/dr%aq(i)%omega(j)
 
-            ! f0 = f0*qp%ap(i)%integration_weight ! do we have to multiply by the weights when going over the whole BZ??
+            f0 = f0*qp%ap(i)%integration_weight
             if (havetau) then
                 ! Multiplication by tau
                 k = qp%ap(i)%irreducible_index
