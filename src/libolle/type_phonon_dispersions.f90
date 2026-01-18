@@ -936,12 +936,12 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
             if (mod(l, mw%n) .ne. mw%r) cycle
             ! Skip acoustic
             if (dr%aq(i)%omega(j) .lt. lo_freqtol) cycle
-            ! Skip degen modes for now (for debug)
-            if (dr%aq(i)%degeneracy(j) /= 1) then
-            ! if (dr%aq(i)%degeneracy(j) == 1) then
-                ! WRITE(*,*) "I skipped a mode", i, j
-                cycle
-            end if
+            ! ! Skip degen modes for now (for debug)
+            ! if (dr%aq(i)%degeneracy(j) /= 1) then
+            ! ! if (dr%aq(i)%degeneracy(j) == 1) then
+            !     ! WRITE(*,*) "I skipped a mode", i, j
+            !     cycle
+            ! end if
             ! Get the weird rotation guy
             angmom_cplx = 0.0_r8
             do k = 1, uc%na
