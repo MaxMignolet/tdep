@@ -1,38 +1,26 @@
-#include "precompilerdefinitions"
-module generalized_operators
+submodule(type_phonon_dispersions) type_phonon_dispersions_qpoint_generalized_operators
 
-
-use gottochblandat, only: lo_determ
 use konstanter, only: lo_freqtol, r8
 use lo_memtracker, only: lo_mem_helper
 use type_crystalstructure, only: lo_crystalstructure
 use type_blas_lapack_wrappers, only: lo_zheev
 use type_forceconstant_secondorder, only: lo_forceconstant_secondorder
-use type_phonon_dispersions, only: lo_phonon_dispersions_qpoint
 use type_qpointmesh, only: lo_qpoint
 use type_symmetryoperation, only: lo_eigenvector_transformation_matrix
 
-
 implicit none
-private
-
-
-public :: lo_return_generalized_group_velocity
-public :: lo_return_generalized_angmom
-
-
 contains
 
 !> calculate generalized group velocities taking degeneracies into account
-subroutine lo_return_generalized_group_velocity(p,fc,qpoint,ompoint,genvel,mem)
+subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
+    !> harmonic properties at this q
+    class(lo_phonon_dispersions_qpoint), intent(in) :: ompoint
     !> structure
     type(lo_crystalstructure), intent(in) :: p
     !> forceconstant
     type(lo_forceconstant_secondorder), intent(inout) :: fc
     !> qpoint
     class(lo_qpoint), intent(in) :: qpoint
-    !> harmonic properties at this q
-    type(lo_phonon_dispersions_qpoint), intent(in) :: ompoint
     !> generalized group velocities (xyz,mode,mode)
     real(r8), dimension(:,:,:), intent(out) :: genvel
     !> memory helper
@@ -190,13 +178,13 @@ subroutine lo_return_generalized_group_velocity(p,fc,qpoint,ompoint,genvel,mem)
 end subroutine
 
 !> returns the \mathbb{L}_{\alpha} thingy I defined
-subroutine lo_return_generalized_angmom(p,qpoint,ompoint,Lalpha)
+subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
+    !> harmonic properties at this q
+    class(lo_phonon_dispersions_qpoint), intent(in) :: ompoint
     !> structure
     type(lo_crystalstructure), intent(in) :: p
     !> qpoint
     class(lo_qpoint), intent(in) :: qpoint
-    !> harmonic properties at this q
-    type(lo_phonon_dispersions_qpoint), intent(in) :: ompoint
     !> generalized group velocities (xyz,mode,mode)
     complex(r8), dimension(:,:,:), intent(out) :: Lalpha
 
@@ -384,4 +372,4 @@ subroutine lo_return_generalized_angmom(p,qpoint,ompoint,Lalpha)
     enddo
 end subroutine
 
-end module generalized_operators
+end submodule

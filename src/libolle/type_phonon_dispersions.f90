@@ -13,6 +13,7 @@ use gottochblandat, only: open_file, walltime, tochar, lo_trueNtimes, lo_classic
                           lo_chop, lo_symmetric_eigensystem_3x3matrix, lo_flattentensor, lo_unflatten_2tensor, &
                           lo_linear_least_squares, lo_nullspace_coefficient_matrix, lo_identitymatrix, &
                           lo_real_pseudoinverse, lo_determ
+! use generalized_operators, only lo_return_generalized_angmom
 use mpi_wrappers, only: lo_mpi_helper, lo_stop_gracefully
 use lo_memtracker, only: lo_mem_helper
 use type_blas_lapack_wrappers, only: lo_gemm, lo_gemv
@@ -101,6 +102,8 @@ contains
     procedure :: unpack_from_buf => unpack_phonon_dispersions_qpoint
     !> size in memory, in bytes
     procedure :: size_in_mem => phonon_dispersions_qpoint_size_in_mem
+    !> get generalized angular momentum operator
+    procedure :: return_generalized_angmom
 end type
 
 !> Phonon dispersion relations in the full BZ
@@ -182,6 +185,24 @@ interface
         class(lo_phonon_dispersions), intent(inout) :: dr
         type(lo_mpi_helper), intent(inout) :: mw
         type(lo_mem_helper), intent(inout) :: mem
+    end subroutine
+end interface
+
+!> interfaces to phonon_dispersion_qpoint_generalized_operators
+interface
+    module subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
+        class(lo_phonon_dispersions_qpoint), intent(in) :: ompoint
+        type(lo_crystalstructure), intent(in) :: p
+        type(lo_forceconstant_secondorder), intent(inout) :: fc
+        class(lo_qpoint), intent(in) :: qpoint
+        real(r8), dimension(:,:,:), intent(out) :: genvel
+        type(lo_mem_helper), intent(inout) :: mem
+    end subroutine
+    module subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
+        class(lo_phonon_dispersions_qpoint), intent(in) :: ompoint
+        type(lo_crystalstructure), intent(in) :: p
+        class(lo_qpoint), intent(in) :: qpoint
+        complex(r8), dimension(:,:,:), intent(out) :: Lalpha
     end subroutine
 end interface
 
@@ -890,20 +911,6 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
 
     ! Some initial things
     init: block
-        ! Representation of the angular momentum operator
-        Mx = 0.0_r8
-        My = 0.0_r8
-        Mz = 0.0_r8
-        Mx(2, 3) = 1
-        Mx(3, 2) = -1
-        My(1, 3) = -1
-        My(3, 1) = 1
-        Mz(1, 2) = 1
-        Mz(2, 1) = -1
-        Mx = -Mx*lo_imag
-        My = -My*lo_imag
-        Mz = -Mz*lo_imag
-
         ! Check if I have real linewidths or just use a fake one
         if (allocated(dr%iq(1)%linewidth)) then
             havetau = .true.
@@ -915,99 +922,74 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
 
     ! Calculate actual angular momentum thingy
     calc: block
-        complex(r8), dimension(3) :: angmom_cplx, eigdispl
+        complex(r8), dimension(:,:,:), allocatable :: angmom_ssp
         real(r8), dimension(3, 3) :: alpha_contrib, torque_contrib
         real(r8), dimension(3, 3, 3) :: beta_contrib
-        real(r8), dimension(3) :: angmom, angmom_sym, vel, vel_sym
+        real(r8), dimension(3) :: angmom, vel
         real(r8) :: f0, f0_tau
-        integer :: i, j, k, l, o
+        integer :: i, j, k, l, o, nat3
 
         alpha = 0.0_r8
         beta = 0.0_r8
         torque = 0.0_r8
-        ! WRITE(66,'(a)') "q-point red-coord, alpha/torque_xy, ~_yx, contrib_xy, ~_yx"
-        ! do i = 1, dr%n_full_qpoint
-        !     if (mw%talk) WRITE(*,'(i2,x,6(i1,x))') i, dr%aq(i)%degeneracy(1:6)
-        ! end do
+        nat3 = uc%na*3
+        ALLOCATE(angmom_ssp(3,nat3,nat3)) ! L_{alpha,s,s'}
+
         l = 0
         do i = 1, qp%n_full_point
-        do j = 1, dr%n_mode
             l = l + 1
             if (mod(l, mw%n) .ne. mw%r) cycle
-            ! Skip acoustic
-            if (dr%aq(i)%omega(j) .lt. lo_freqtol) cycle
-            ! ! Skip degen modes for now (for debug)
-            ! if (dr%aq(i)%degeneracy(j) /= 1) then
-            ! ! if (dr%aq(i)%degeneracy(j) == 1) then
-            !     ! WRITE(*,*) "I skipped a mode", i, j
-            !     cycle
-            ! end if
-            ! Get the weird rotation guy
-            angmom_cplx = 0.0_r8
-            do k = 1, uc%na
-                eigdispl = dr%aq(i)%egv((k - 1)*3 + 1:k*3, j)
-                angmom_cplx(1) = angmom_cplx(1) + dot_product(eigdispl, matmul(Mx, eigdispl))
-                angmom_cplx(2) = angmom_cplx(2) + dot_product(eigdispl, matmul(My, eigdispl))
-                angmom_cplx(3) = angmom_cplx(3) + dot_product(eigdispl, matmul(Mz, eigdispl))
+
+            call dr%aq(i)%return_generalized_angmom(uc,qp%ap(i),angmom_ssp)
+
+            do j = 1, dr%n_mode ! we only look at the diagonal contrib for now..
+                ! group velocity TODO: replace by generalized operator
+                vel = dr%aq(i)%vel(:, j)
+
+                angmom(:) = angmom_ssp(:,j,j)
+                WRITE(*,*) angmom
+
+                ! dn/dT
+                f0 = lo_harmonic_oscillator_cv(temperature, dr%aq(i)%omega(j))/dr%aq(i)%omega(j)
+
+                f0 = f0*qp%ap(i)%integration_weight
+                if (havetau) then
+                    ! Multiplication by tau
+                    k = qp%ap(i)%irreducible_index
+                    f0_tau = f0/(2.0_r8*dr%iq(k)%linewidth(j))
+                else
+                    ! Multiplication by random constant number
+                    f0_tau = f0*faketau
+                end if
+                ! I might have to reverse the order of the arguments in outerproduct
+                ! as it seems to flip them to obey some column/row-major conversion
+                ! for some reason..., this essantially flips the off-diag component
+                ! which may have opposite signs... (but that is not a real issue
+                ! for time being
+
+                ! alpha = alpha - lo_outerproduct(angmom_sym, vel_sym)*f0_tau
+                ! torque = torque - lo_outerproduct(angmom_sym, vel_sym)*f0
+                alpha_contrib = - lo_outerproduct(angmom, vel)*f0_tau
+                beta_contrib = - lo_outer_outerproduct(angmom, vel, vel)*f0_tau
+                torque_contrib = - lo_outerproduct(angmom, vel)*f0
+                alpha = alpha + alpha_contrib
+                beta = beta + beta_contrib
+                torque = torque + torque_contrib
+                ! WRITE(66,'(3(f5.3,1x))') qp%ap(i)%r
+                ! WRITE(66,'(8x,3(3e16.7,1x),1x)') alpha(1,2), alpha(2,1), alpha_contrib(1,2), alpha_contrib(2,1)
+                ! WRITE(66,'(8x,3(3e16.7,1x),1x)') torque(1,2), torque(2,1), torque_contrib(1,2), torque_contrib(2,1)
             end do
-            ! Now average over the small group. Seems sensible? Yes no maybe.
-            angmom = real(angmom_cplx)
-            vel = dr%aq(i)%vel(:, j)
-
-            if (.False.) then
-                angmom_sym = 0.0_r8
-                vel_sym = 0.0_r8
-                do k = 1, qp%ap(i)%n_invariant_operation
-                    o = qp%ap(i)%invariant_operation(k)
-                    angmom_sym = angmom_sym + matmul(uc%sym%op(o)%m, angmom)
-                    vel_sym    = vel_sym    + matmul(uc%sym%op(o)%m, vel)
-                end do
-                angmom_sym = angmom_sym/real(qp%ap(i)%n_invariant_operation, r8)
-                vel_sym = vel_sym/real(qp%ap(i)%n_invariant_operation, r8)
-            else
-                angmom_sym = angmom
-                vel_sym = vel
-            endif
-
-
-            ! dn/dT
-            f0 = lo_harmonic_oscillator_cv(temperature, dr%aq(i)%omega(j))/dr%aq(i)%omega(j)
-
-            f0 = f0*qp%ap(i)%integration_weight
-            if (havetau) then
-                ! Multiplication by tau
-                k = qp%ap(i)%irreducible_index
-                f0_tau = f0/(2.0_r8*dr%iq(k)%linewidth(j))
-            else
-                ! Multiplication by random constant number
-                f0_tau = f0*faketau
-            end if
-            ! I might have to reverse the order of the arguments in outerproduct
-            ! as it seems to flip them to obey some column/row-major conversion
-            ! for some reason..., this essantially flips the off-diag component
-            ! which may have opposite signs... (but that is not a real issue
-            ! for time being
-
-            ! alpha = alpha - lo_outerproduct(angmom_sym, vel_sym)*f0_tau
-            ! torque = torque - lo_outerproduct(angmom_sym, vel_sym)*f0
-            alpha_contrib = - lo_outerproduct(angmom_sym, vel_sym)*f0_tau
-            beta_contrib = - lo_outer_outerproduct(angmom_sym, vel_sym, vel_sym)*f0_tau
-            torque_contrib = - lo_outerproduct(angmom_sym, vel_sym)*f0
-            alpha = alpha + alpha_contrib
-            beta = beta + beta_contrib
-            torque = torque + torque_contrib
-            ! WRITE(66,'(3(f5.3,1x))') qp%ap(i)%r
-            ! WRITE(66,'(8x,3(3e16.7,1x),1x)') alpha(1,2), alpha(2,1), alpha_contrib(1,2), alpha_contrib(2,1)
-            ! WRITE(66,'(8x,3(3e16.7,1x),1x)') torque(1,2), torque(2,1), torque_contrib(1,2), torque_contrib(2,1)
         end do
-        end do
+        DEALLOCATE(angmom_ssp)
         call mw%allreduce('sum', alpha)
+        call mw%allreduce('sum', beta)
+        call mw%allreduce('sum', torque)
         ! And finally scale with volume. I should really do a
         ! dimensionality analysis on this to figure out the unit.
         alpha = alpha/uc%volume
         beta = beta/uc%volume
         torque = torque/uc%volume
-        f0 = norm2(alpha)
+        ! f0 = norm2(alpha)
         ! alpha = lo_chop(alpha, f0*1E-10_r8) ! we are no lumberjack
     end block calc
 end subroutine
