@@ -189,7 +189,7 @@ subroutine calculate_everything(uc, bs, dr, pd, qp, fc, mw, mem)
     end if
 
     ! Weird angular momentum thing?
-    call dr%phonon_angular_momentum_matrix(qp, uc, 300.0_r8, m0, m1, m2, mw)
+    call dr%phonon_angular_momentum_matrix(qp, fc, uc, 300.0_r8, m0, m1, m2, mw, mem)
     m0(:,:)   = m0 * lo_hbar_Joule / lo_bohr_to_m**2
     m1(:,:,:) = m1 * lo_hbar_Joule * lo_groupvel_hartreebohr_to_ms / lo_bohr_to_m**2
     m2(:,:)   = m2 * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2

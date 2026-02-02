@@ -12,6 +12,7 @@ use gottochblandat, only: lo_planck, lo_gauss, lo_trapezoid_integration, lo_oute
 use mpi_wrappers, only: lo_mpi_helper, lo_stop_gracefully, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_IN_PLACE
 use lo_memtracker, only: lo_mem_helper
 use type_crystalstructure, only: lo_crystalstructure
+use type_forceconstant_secondorder, only: lo_forceconstant_secondorder
 use type_qpointmesh, only: lo_qpoint_mesh, lo_LV_tetrahedron_weights, lo_integration_weights_for_one_tetrahedron
 use type_phonon_dispersions, only: lo_phonon_dispersions
 use type_phonon_dos, only: lo_phonon_dos
@@ -81,11 +82,13 @@ end type
 contains
 
 !> get the mfp histogram thing for one temperature
-subroutine get_cumulative_plots(mf, qp, dr, pd, uc, np, temperature, sigma, kappa, mw, mem)
+subroutine get_cumulative_plots(mf, qp, fc, dr, pd, uc, np, temperature, sigma, kappa, mw, mem)
     !> the cumulative plot
     type(lo_mfp_temperature), intent(inout) :: mf
     !> the q-grid
     class(lo_qpoint_mesh), intent(in) :: qp
+    !> forceconstant
+    type(lo_forceconstant_secondorder), intent(inout) :: fc
     !> the dispersions and kappa
     type(lo_phonon_dispersions), intent(in) :: dr
     !> phonon density of states
@@ -436,8 +439,8 @@ subroutine get_cumulative_plots(mf, qp, dr, pd, uc, np, temperature, sigma, kapp
                            spec_kappa_band=mf%fq_kappa_band, spec_kappa_atom=mf%fq_kappa_atom)
 
     ! Then do the whole angular momentum guy.
-    call dr%phonon_angular_momentum_matrix(qp, uc, temperature, mf%angmomalpha,&
-                                           mf%angmombeta, mf%angmom_torque, mw)
+    call dr%phonon_angular_momentum_matrix(qp, fc, uc, temperature, mf%angmomalpha,&
+                                           mf%angmombeta, mf%angmom_torque, mw, mem)
 
     call pd%spectral_angular_momentum(uc, qp, dr, temperature, mw, mem, spec_angmom=mf%fq_angmom, &
                                       spec_angmom_band=mf%fq_angmom_band, spec_angmom_atom=mf%fq_angmom_atom)

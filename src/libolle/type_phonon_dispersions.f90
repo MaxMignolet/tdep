@@ -102,6 +102,8 @@ contains
     procedure :: unpack_from_buf => unpack_phonon_dispersions_qpoint
     !> size in memory, in bytes
     procedure :: size_in_mem => phonon_dispersions_qpoint_size_in_mem
+    !> get generalized group velocity operator
+    procedure :: return_generalized_group_velocity
     !> get generalized angular momentum operator
     procedure :: return_generalized_angmom
 end type
@@ -883,12 +885,14 @@ pure function phonon_entropy(dr, temperature, modenum, sitenum) result(s)
 end function
 
 !> calculate phonon angular momentum matrix
-subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
-                                          beta, torque, mw)
+subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, alpha,\
+                                          beta, torque, mw, mem)
     !> dispersion relations
     class(lo_phonon_dispersions), intent(in) :: dr
     !> qpoint mesh
     class(lo_qpoint_mesh), intent(in) :: qp
+    !> forceconstant
+    type(lo_forceconstant_secondorder), intent(inout) :: fc
     !> crystal structure
     type(lo_crystalstructure), intent(in) :: uc
     !> temperature
@@ -901,6 +905,8 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
     real(r8), dimension(3, 3), intent(out) :: torque
     !> MPI helper
     type(lo_mpi_helper), intent(inout) :: mw
+    !> memory helper
+    type(lo_mem_helper), intent(inout) :: mem
 
     real(r8), parameter :: faketau = 10E-12_r8*lo_time_s_to_au ! lifetime of 10 ps
     logical :: havetau
@@ -918,6 +924,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
 
     ! Calculate actual angular momentum thingy
     calc: block
+        real(r8), dimension(:,:,:), allocatable :: vel_ssp
         complex(r8), dimension(:,:,:), allocatable :: angmom_ssp
         real(r8), dimension(3, 3) :: alpha_contrib, torque_contrib
         real(r8), dimension(3, 3, 3) :: beta_contrib
@@ -929,6 +936,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
         beta = 0.0_r8
         torque = 0.0_r8
         nat3 = uc%na*3
+        ALLOCATE(vel_ssp(3,nat3,nat3)) ! vel_{alpha,s,s'}
         ALLOCATE(angmom_ssp(3,nat3,nat3)) ! L_{alpha,s,s'}
 
         l = 0
@@ -937,13 +945,15 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
             ! not my job, I let others do the work
             if (mod(l, mw%n) .ne. mw%r) cycle
 
+            call dr%aq(i)%return_generalized_group_velocity(uc,fc,qp%ap(i),vel_ssp,mem)
             call dr%aq(i)%return_generalized_angmom(uc,qp%ap(i),angmom_ssp)
 
             do j = 1, dr%n_mode ! we only look at the diagonal contrib for now..
                 ! Don't care for acoustic modes
                 if ( dr%aq(i)%omega(j) .lt. lo_freqtol ) cycle
                 ! group velocity TODO: replace by generalized operator
-                vel = dr%aq(i)%vel(:, j)
+                ! vel = dr%aq(i)%vel(:, j)
+                vel = vel_ssp(:,j,j)
 
                 angmom(:) = real(angmom_ssp(:,j,j)) ! diag part is at least real
                 ! WRITE(*,*) angmom
@@ -979,7 +989,9 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
                 ! WRITE(66,'(8x,3(3e16.7,1x),1x)') torque(1,2), torque(2,1), torque_contrib(1,2), torque_contrib(2,1)
             end do
         end do
+        DEALLOCATE(vel_ssp)
         DEALLOCATE(angmom_ssp)
+        ! wouldn't a simple mw%reduce() do the trick? I'll the allreduce for the moment...
         call mw%allreduce('sum', alpha)
         call mw%allreduce('sum', beta)
         call mw%allreduce('sum', torque)

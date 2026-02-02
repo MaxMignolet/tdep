@@ -290,7 +290,7 @@ getkappa: block
         ! Calculate the cumulative plots
         t0 = walltime()
         call mpi_barrier(mw%comm, mw%error)
-        call get_cumulative_plots(mf%temp(i), qp, dr, pd, uc, opts%mfppts, temperatures(i), opts%sigma, kappa, mw, mem)
+        call get_cumulative_plots(mf%temp(i), qp, fc, dr, pd, uc, opts%mfppts, temperatures(i), opts%sigma, kappa, mw, mem)
 
         timer_cumulative = timer_cumulative + walltime() - t0
         call mpi_barrier(mw%comm, mw%error)

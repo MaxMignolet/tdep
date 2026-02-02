@@ -298,9 +298,8 @@ blockkappa: block
     end if
 
     ! Computing phangmom generation and transport tensors here
-    ! No need for the cumulation thingy, I'm not a Belgian politician or what not
     if (mw%talk) write(*,*) 'Hello there'
-    call dr%phonon_angular_momentum_matrix(qp, uc, opts%temperature, alpha_angmom, beta_angmom, torque_angmom, mw)
+    call dr%phonon_angular_momentum_matrix(qp, fc, uc, opts%temperature, alpha_angmom, beta_angmom, torque_angmom, mw, mem)
     if (mw%talk) then
         write(*,*) 'Angular momentum generation matrix: (units: hbar/bohr^⁻2/K)'
         write(*, "(1x,3(3(f10.6,1x),1x))") alpha_angmom(:,:)
@@ -339,7 +338,7 @@ blockkappa: block
 
     ! And finally the angular momentum
     if (mw%talk) write(*, *) '... computing angular momentum'
-    call mf%get_angular_momentum(uc, qp, dr, pd, opts%temperature, mw, mem)
+    call mf%get_angular_momentum(uc, qp, fc, dr, pd, opts%temperature, mw, mem)
     call tmr_kappa%tock('angular momentum')
 
     ! In a last step, we have to add a prefactor to Fn, to have the right kappa per mode in the outfile

@@ -107,21 +107,21 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
         ! We could possibly do even better if we also average over the small
         ! group of q.
 
-        ! allocate(m1(nb,nb))
-        ! allocate(m2(nb,nb))
-        ! m1=0.0_r8
-        ! m2=0.0_r8
-        ! do i=1,qpoint%n_invariant_operation
-        !     iop=qpoint%invariant_operation(i)
-        !     call lo_eigenvector_transformation_matrix(rotmat,p%rcart,qpoint%r,p%sym%op(iop))
-        !     m1 = matmul(rotmat,m0)
-        !     do b1=1,nb
-        !     do b2=1,nb
-        !         m2(b1,b2)=m2(b1,b2)+dot_product(m1(:,b1),matmul(Dq(:,:,ialpha),m1(:,b2)))
-        !     enddo
-        !     enddo
-        ! enddo
-        ! m2=m2/real(qpoint%n_invariant_operation,r8)
+        allocate(m1(nb,nb))
+        allocate(m2(nb,nb))
+        m1=0.0_r8
+        m2=0.0_r8
+        do i=1,qpoint%n_invariant_operation
+            iop=qpoint%invariant_operation(i)
+            call lo_eigenvector_transformation_matrix(rotmat,p%rcart,qpoint%r,p%sym%op(iop))
+            m1 = matmul(rotmat,m0)
+            do b1=1,nb
+            do b2=1,nb
+                m2(b1,b2)=m2(b1,b2)+dot_product(m1(:,b1),matmul(Dq(:,:,ialpha),m1(:,b2)))
+            enddo
+            enddo
+        enddo
+        m2=m2/real(qpoint%n_invariant_operation,r8)
 
         ! Sandwich with rotated eigenvectors
         allocate(m2(nb,nb))

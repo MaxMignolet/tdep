@@ -8,6 +8,7 @@ use gottochblandat, only: lo_chop, lo_logspace, lo_linear_interpolation, qsort, 
                           lo_harmonic_oscillator_cv, lo_outerproduct
 use type_symmetryoperation, only: lo_operate_on_vector, lo_operate_on_secondorder_tensor
 use type_crystalstructure, only: lo_crystalstructure
+use type_forceconstant_secondorder, only: lo_forceconstant_secondorder
 use type_qpointmesh, only: lo_qpoint_mesh, lo_fft_mesh
 use type_phonon_dispersions, only: lo_phonon_dispersions
 use type_phonon_dos, only: lo_phonon_dos
@@ -562,13 +563,15 @@ subroutine get_spectral_kappa(mf, uc, qp, dr, pd, temperature, classical, mw, me
                            spec_kappa_band=mf%fq_kappa_band, spec_kappa_atom=mf%fq_kappa_atom)
 end subroutine
 
-subroutine get_angular_momentum(mf, uc, qp, dr, pd, temperature, mw, mem)
+subroutine get_angular_momentum(mf, uc, qp, fc, dr, pd, temperature, mw, mem)
     !> The cumulative plot
     class(lo_cumulative_kappa), intent(inout) :: mf
     !> The structure
     type(lo_crystalstructure), intent(in) :: uc
     !> The q-grid
     class(lo_qpoint_mesh), intent(in) :: qp
+    !> forceconstant
+    type(lo_forceconstant_secondorder), intent(inout) :: fc
     !> The dispersion
     type(lo_phonon_dispersions), intent(inout) :: dr
     !> Phonon density of states
@@ -580,8 +583,8 @@ subroutine get_angular_momentum(mf, uc, qp, dr, pd, temperature, mw, mem)
     !> memory helper
     type(lo_mem_helper), intent(inout) :: mem
 
-    call dr%phonon_angular_momentum_matrix(qp, uc, temperature, mf%angmomalpha,&
-                                           mf%angmombeta, mf%angmom_torque, mw)
+    call dr%phonon_angular_momentum_matrix(qp, fc, uc, temperature, mf%angmomalpha,&
+                                           mf%angmombeta, mf%angmom_torque, mw, mem)
     mf%angmomalpha = lo_chop(mf%angmomalpha, 1e-15_r8)
     call pd%spectral_angular_momentum(uc, qp, dr, temperature, mw, mem, spec_angmom=mf%fq_angmom, &
                                       spec_angmom_band=mf%fq_angmom_band, spec_angmom_atom=mf%fq_angmom_atom)
