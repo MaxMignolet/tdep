@@ -1002,6 +1002,8 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
         end do
         end do
         call mw%allreduce('sum', alpha)
+        call mw%allreduce('sum', beta)
+        call mw%allreduce('sum', torque)
         ! And finally scale with volume. I should really do a
         ! dimensionality analysis on this to figure out the unit.
         alpha = alpha/uc%volume
