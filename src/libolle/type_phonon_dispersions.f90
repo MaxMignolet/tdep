@@ -675,13 +675,10 @@ subroutine write_irreducible_to_hdf5(dr, qp, uc, filename, mem)
     type(lo_mem_helper), intent(inout) :: mem
 
     type(lo_hdf5_helper) :: h5
-    real(r8), dimension(:, :, :, :), allocatable :: dddd
     real(r8), dimension(:, :, :), allocatable :: ddd
     real(r8), dimension(:, :), allocatable :: dd
     real(r8), dimension(:), allocatable :: di
-    real(r8), dimension(3) :: v0, v1
-    real(r8) :: n1, n, f0, omega, cv, tau
-    integer :: i, j, k, l
+    integer :: i
     character(len=1000) :: dname
 
     call h5%init(__FILE__, __LINE__)
@@ -906,7 +903,6 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
     type(lo_mpi_helper), intent(inout) :: mw
 
     real(r8), parameter :: faketau = 10E-12_r8*lo_time_s_to_au ! lifetime of 10 ps
-    complex(r8), dimension(3, 3) :: Mx, My, Mz
     logical :: havetau
 
     ! Some initial things
@@ -927,7 +923,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
         real(r8), dimension(3, 3, 3) :: beta_contrib
         real(r8), dimension(3) :: angmom, vel
         real(r8) :: f0, f0_tau
-        integer :: i, j, k, l, o, nat3
+        integer :: i, j, k, l, nat3
 
         alpha = 0.0_r8
         beta = 0.0_r8
@@ -938,7 +934,10 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
         l = 0
         do i = 1, qp%n_full_point
             l = l + 1
+            ! not my job, I let others do the work
             if (mod(l, mw%n) .ne. mw%r) cycle
+            ! Don't care for acoustic modes
+            if ( dr%aq(i)%omega(j) .lt. lo_freqtol ) cycle
 
             call dr%aq(i)%return_generalized_angmom(uc,qp%ap(i),angmom_ssp)
 
@@ -947,7 +946,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
                 vel = dr%aq(i)%vel(:, j)
 
                 angmom(:) = angmom_ssp(:,j,j)
-                WRITE(*,*) angmom
+                ! WRITE(*,*) angmom
 
                 ! dn/dT
                 f0 = lo_harmonic_oscillator_cv(temperature, dr%aq(i)%omega(j))/dr%aq(i)%omega(j)
