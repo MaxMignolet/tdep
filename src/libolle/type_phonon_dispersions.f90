@@ -936,16 +936,16 @@ subroutine phonon_angular_momentum_matrix(dr, qp, uc, temperature, alpha,\
             l = l + 1
             ! not my job, I let others do the work
             if (mod(l, mw%n) .ne. mw%r) cycle
-            ! Don't care for acoustic modes
-            if ( dr%aq(i)%omega(j) .lt. lo_freqtol ) cycle
 
             call dr%aq(i)%return_generalized_angmom(uc,qp%ap(i),angmom_ssp)
 
             do j = 1, dr%n_mode ! we only look at the diagonal contrib for now..
+                ! Don't care for acoustic modes
+                if ( dr%aq(i)%omega(j) .lt. lo_freqtol ) cycle
                 ! group velocity TODO: replace by generalized operator
                 vel = dr%aq(i)%vel(:, j)
 
-                angmom(:) = angmom_ssp(:,j,j)
+                angmom(:) = real(angmom_ssp(:,j,j)) ! diag part is at least real
                 ! WRITE(*,*) angmom
 
                 ! dn/dT

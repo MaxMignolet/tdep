@@ -225,7 +225,7 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
         do igamma=1,3
             ii=(i-1)*3+ialpha
             jj=(i-1)*3+ibeta
-            Dq(ii,jj,igamma)=lcv(ialpha,ibeta,igamma)
+            Dq(ii,jj,igamma)=-lo_imag*lcv(ialpha,ibeta,igamma)
         enddo
         enddo
         enddo
@@ -322,26 +322,16 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
                     do ibeta=1,3
                     do igamma=1,3
                         ! MMig: re-sandwiching lcv here? Why not do it sooner?
-                        m2(b1,b2)=m2(b1,b2) + lcv(ialpha,ibeta,igamma)*cw0(ibeta)*cw1(igamma)
+                        m2(b1,b2)=m2(b1,b2) - lo_imag * lcv(ialpha,ibeta,igamma)*cw0(ibeta)*cw1(igamma)
                     enddo
                     enddo
                 enddo
             enddo
             enddo
         enddo
-        m2=m2/real(qpoint%n_invariant_operation,r8)
-        ! and add the frequency factors
-        do b1=1,nb
-        do b2=1,nb
-            if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
-            if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
-            ! m2(b1,b2) = m2(b1,b2) / sqrt( ompoint%omega(b1)/ompoint%omega(b2) )
-            m2(b1,b2) = m2(b1,b2) * sqrt( ompoint%omega(b1)/ompoint%omega(b2) )
-        enddo
-        enddo
+        Lalpha(ialpha,:,:)=m2/real(qpoint%n_invariant_operation,r8)
         ! Not sure how to store .. m2 should be purely imaginary at this point. Possibly.
         ! The diagonal should be purely imaginary, not sure about the rest.
-        Lalpha(ialpha,:,:)=m2
 
         deallocate(m1)
         deallocate(m2)
@@ -360,14 +350,14 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
             if ( iop .gt. 0 ) then
                 ! pseudovector so det(op) in front.
                 f0=lo_determ(p%sym%op(iop)%m)
-                w1=w1+f0*matmul(p%sym%op(iop)%m,w0)
+                cw1=cw1+f0*matmul(p%sym%op(iop)%m,cw0)
             else
                 ! this means time reversal
                 f0=lo_determ(p%sym%op(iop)%m)
-                w1=w1-f0*matmul(p%sym%op(iop)%m,w0)
+                cw1=cw1-f0*matmul(p%sym%op(iop)%m,cw0)
             endif
         enddo
-        Lalpha(:,b1,b2)=w1/real(qpoint%n_invariant_operation)
+        Lalpha(:,b1,b2)=cw1/real(qpoint%n_invariant_operation)
     enddo
     enddo
 end subroutine
