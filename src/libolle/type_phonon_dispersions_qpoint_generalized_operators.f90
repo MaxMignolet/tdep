@@ -157,6 +157,11 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
         deallocate(m2)
     enddo
 
+    deallocate(m0)
+    deallocate(Dq)
+    deallocate(modefixed)
+    deallocate(v1)
+
     ! Maybe a final average over the small group? Yes no maybe. Seems reasonable.
     do b1=1,nb
     do b2=1,nb
@@ -336,6 +341,12 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
         deallocate(m1)
         deallocate(m2)
     enddo
+
+    deallocate(Dq)
+    deallocate(m0)
+    deallocate(rotmat)
+    deallocate(modefixed)
+    deallocate(v1)
 
     ! Maybe a final average over the small group? Yes no maybe. Seems reasonable.
     ! Commented out for now because symmetry is complicated.
