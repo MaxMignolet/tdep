@@ -27,7 +27,7 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
     type(lo_mem_helper), intent(inout) :: mem
 
     complex(r8), dimension(:,:,:), allocatable :: Dq
-    complex(r8), dimension(:,:), allocatable :: m0,m1,m2,m3
+    complex(r8), dimension(:,:), allocatable :: m0,m1,m2,m3,rotmat
     real(r8), dimension(:), allocatable :: v0,v1
     real(r8), dimension(3) :: w0,w1
     real(r8) :: f0
@@ -38,6 +38,7 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
 
     allocate(m0(nb,nb))
     allocate(Dq(nb,nb,3))
+    allocate(rotmat(nb,nb))
     m0=0.0_r8 ! dynamical matrix
     Dq=0.0_r8 ! q-gradient of the dynamical matrix
     call fc%dynamicalmatrix(p, qpoint, m0, mem, Dq, qdirection=[1.0_r8, 0.0_r8, 0.0_r8])

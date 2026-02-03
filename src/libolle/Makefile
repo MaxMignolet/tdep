@@ -114,7 +114,7 @@ $(OBJECT_PATH)type_qpointmesh_io.o \
 $(OBJECT_PATH)lo_phonon_bandstructure_on_path.o \
 $(OBJECT_PATH)type_phonon_dispersions.o \
 $(OBJECT_PATH)type_phonon_dispersions_generation.o \
-$(OBJECT_PATH)type_phonon_dispersions_qpoint_generalized_operators.f90 \
+$(OBJECT_PATH)type_phonon_dispersions_qpoint_generalized_operators.o \
 $(OBJECT_PATH)type_phonon_dos.o \
 $(OBJECT_PATH)type_phonon_dos_integrations.o \
 $(OBJECT_PATH)type_symmetryoperation.o \
