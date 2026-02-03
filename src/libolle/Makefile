@@ -114,6 +114,7 @@ $(OBJECT_PATH)type_qpointmesh_io.o \
 $(OBJECT_PATH)lo_phonon_bandstructure_on_path.o \
 $(OBJECT_PATH)type_phonon_dispersions.o \
 $(OBJECT_PATH)type_phonon_dispersions_generation.o \
+$(OBJECT_PATH)type_phonon_dispersions_qpoint_generalized_operators.f90 \
 $(OBJECT_PATH)type_phonon_dos.o \
 $(OBJECT_PATH)type_phonon_dos_integrations.o \
 $(OBJECT_PATH)type_symmetryoperation.o \
@@ -663,11 +664,21 @@ $(OBJECT_PATH)type_phonon_dispersions.o:\
     $(OBJECT_PATH)type_forceconstant_thirdorder.o\
     $(OBJECT_PATH)type_qpointmesh.o\
 	$(OBJECT_PATH)type_symmetryoperation.o\
-    $(OBJECT_PATH)hdf5_wrappers.o
+    $(OBJECT_PATH)hdf5_wrappers.o\
+    $(OBJECT_PATH)type_phonon_dispersions_qpoint_generalized_operators.o
 	$(FC) $(FFLAGS) -c type_phonon_dispersions.f90 -o $@
 $(OBJECT_PATH)type_phonon_dispersions_generation.o:\
     $(OBJECT_PATH)type_phonon_dispersions.o
 	$(FC) $(FFLAGS) -c type_phonon_dispersions_generation.f90 -o $@
+
+$(OBJECT_PATH)type_phonon_dispersions_qpoint_generalized_operators.o:\
+    $(OBJECT_PATH)konstanter.o\
+    $(OBJECT_PATH)lo_memtracker.o\
+    $(OBJECT_PATH)type_crystalstructure.o\
+    $(OBJECT_PATH)type_forceconstant_secondorder.o\
+    $(OBJECT_PATH)type_qpointmesh.o\
+    $(OBJECT_PATH)type_symmetryoperation.o
+	$(FC) $(FFLAGS) -c type_phonon_dispersions_qpoint_generalized_operators.f90 -o $@
 
 $(OBJECT_PATH)type_phonon_dos.o:\
     $(OBJECT_PATH)konstanter.o\
