@@ -125,7 +125,6 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
         m2=m2/real(qpoint%n_invariant_operation,r8)
 
         ! Sandwich with rotated eigenvectors
-        allocate(m2(nb,nb))
         m2=0.0_r8
         do b1=1,nb
         do b2=1,nb
@@ -155,6 +154,7 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
         enddo
         enddo
 
+        deallocate(m1)
         deallocate(m2)
     enddo
 
