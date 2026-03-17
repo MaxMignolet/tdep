@@ -124,13 +124,13 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
         enddo
         m2=m2/real(qpoint%n_invariant_operation,r8)
 
-        ! Sandwich with rotated eigenvectors
-        m2=0.0_r8
-        do b1=1,nb
-        do b2=1,nb
-            m2(b1,b2)=dot_product(m0(:,b1),matmul(Dq(:,:,ialpha),m0(:,b2)))
-        enddo
-        enddo
+        ! ! Sandwich with rotated eigenvectors
+        ! m2=0.0_r8
+        ! do b1=1,nb
+        ! do b2=1,nb
+        !     m2(b1,b2)=dot_product(m0(:,b1),matmul(Dq(:,:,ialpha),m0(:,b2)))
+        ! enddo
+        ! enddo
         ! Make sure the degeneracies hold
         do b1=1,nb
             if ( ompoint%degeneracy(b1) .eq. 1 ) cycle
@@ -307,6 +307,7 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
         ! because I'm a grown up and I do whatever I want.
 
         ! MMig: I'm not too sure about what is done here.. I'll need to see the eqs.
+        ! Maybe we should 'un-rotate' the angular momentum before summing
         allocate(m1(nb,nb))
         allocate(m2(nb,nb))
         m1=0.0_r8
