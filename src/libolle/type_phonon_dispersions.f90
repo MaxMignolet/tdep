@@ -13,7 +13,6 @@ use gottochblandat, only: open_file, walltime, tochar, lo_trueNtimes, lo_classic
                           lo_chop, lo_symmetric_eigensystem_3x3matrix, lo_flattentensor, lo_unflatten_2tensor, &
                           lo_linear_least_squares, lo_nullspace_coefficient_matrix, lo_identitymatrix, &
                           lo_real_pseudoinverse, lo_determ
-! use generalized_operators, only lo_return_generalized_angmom
 use mpi_wrappers, only: lo_mpi_helper, lo_stop_gracefully
 use lo_memtracker, only: lo_mem_helper
 use type_blas_lapack_wrappers, only: lo_gemm, lo_gemv
@@ -918,7 +917,9 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, alpha,\
             havetau = .true.
         else
             havetau = .false.
-            WRITE(*,*) "Computing angular momentum matrices with fake tau"
+            if (mw%talk) then
+                WRITE(*,*) "Computing angular momentum matrices with fake tau"
+            end if
         end if
     end block init
 
@@ -951,7 +952,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, alpha,\
             do j = 1, dr%n_mode ! we only look at the diagonal contrib for now..
                 ! Don't care for acoustic modes
                 if ( dr%aq(i)%omega(j) .lt. lo_freqtol ) cycle
-                ! group velocity TODO: replace by generalized operator
+                ! group velocity
                 ! vel = dr%aq(i)%vel(:, j)
                 vel = vel_ssp(:,j,j)
 
@@ -991,7 +992,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, alpha,\
         end do
         DEALLOCATE(vel_ssp)
         DEALLOCATE(angmom_ssp)
-        ! wouldn't a simple mw%reduce() do the trick? I'll the allreduce for the moment...
+        ! wouldn't a simple mw%reduce() do the trick? I'll leave the allreduce for the moment...
         call mw%allreduce('sum', alpha)
         call mw%allreduce('sum', beta)
         call mw%allreduce('sum', torque)
@@ -1001,7 +1002,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, alpha,\
         beta = beta/uc%volume
         torque = torque/uc%volume
         ! f0 = norm2(alpha)
-        ! alpha = lo_chop(alpha, f0*1E-10_r8) ! we are no lumberjack
+        ! alpha = lo_chop(alpha, f0*1E-10_r8)
     end block calc
 end subroutine
 

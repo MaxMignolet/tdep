@@ -5,6 +5,11 @@ implicit none
 contains
 
 !> Get the spectral phonon angular momentum.
+!> This routine should be updated to use the generazlied operators for the
+!> velocity and the angular momentum. See
+!> libolle/type_phonon_dispersion.f90::phonon_angular_momentum_matrix(),
+!> libolle/type_phonon_dispersion_qpoint_generalized_operators.f90::return_generalized_group_velocity(),
+!> libolle/type_phonon_dispersion_qpoint_generalized_operators.f90::return_generalized_angmom(),
 module subroutine spectral_angular_momentum(pd, uc, qp, dr, temperature, mw, mem, spec_angmom, spec_angmom_band, spec_angmom_atom)
     !> phonon dos
     class(lo_phonon_dos), intent(inout) :: pd

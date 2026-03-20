@@ -194,12 +194,12 @@ subroutine calculate_everything(uc, bs, dr, pd, qp, fc, mw, mem)
     m1(:,:,:) = m1 * lo_hbar_Joule * lo_groupvel_hartreebohr_to_ms / lo_bohr_to_m**2
     m2(:,:)   = m2 * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2
     if (mw%talk) then
-        ! Units are: L density / gradT:  Js/m^-3 /(K/m)
-        call lo_h5_store_data(m0, file_id, 'angular_momentum_alpha', lo_status, enhet='Js/m^⁻2/K')
-        ! Units are: L density * velocity / gradT:  Js/m^-3 m/s /(K/m)
+        ! Units are: L density / gradT:  Js/m^3 /(K/m)
+        call lo_h5_store_data(m0, file_id, 'angular_momentum_alpha', lo_status, enhet='Js/m^2/K')
+        ! Units are: L density * velocity / gradT:  Js/m^3 m/s /(K/m)
         call lo_h5_store_data(m1, file_id, 'angular_momentum_beta', lo_status, enhet='J/m/K')
-        ! Units are: torque / gradT, :  Js/m^-3 /(K/m) (torque = L density / time)
-        call lo_h5_store_data(m2, file_id, 'angular_momentum_torque', lo_status, enhet='J/m^⁻2/K')
+        ! Units are: torque / gradT, :  Js/m^3 /(K/m) (torque = L density / time)
+        call lo_h5_store_data(m2, file_id, 'angular_momentum_torque', lo_status, enhet='J/m^2/K')
     end if
 
     ! And close the output file

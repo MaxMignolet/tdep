@@ -105,6 +105,7 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
             endif
         enddo
         ! At this point m0 should hold the appropriately rotated eigenvectors.
+        ! And v1 holds the corresponding eigenvalues
         ! We could possibly do even better if we also average over the small
         ! group of q.
 
@@ -122,15 +123,9 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
             enddo
             enddo
         enddo
+        ! m2 holds the component ialpha of the generalized velocity
         m2=m2/real(qpoint%n_invariant_operation,r8)
 
-        ! ! Sandwich with rotated eigenvectors
-        ! m2=0.0_r8
-        ! do b1=1,nb
-        ! do b2=1,nb
-        !     m2(b1,b2)=dot_product(m0(:,b1),matmul(Dq(:,:,ialpha),m0(:,b2)))
-        ! enddo
-        ! enddo
         ! Make sure the degeneracies hold
         do b1=1,nb
             if ( ompoint%degeneracy(b1) .eq. 1 ) cycle
@@ -148,8 +143,6 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
         do b2=1,nb
             if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
             if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
-            ! is this correct? shouldn't it be Dq / 2 sqrt(om1*om2) ?
-            ! genvel(ialpha,b1,b2)=real( m2(b1,b2)/(ompoint%omega(b1)+ompoint%omega(b2)), r8)
             genvel(ialpha,b1,b2)=real( m2(b1,b2) / (2*sqrt(ompoint%omega(b1)*ompoint%omega(b2))), r8)
         enddo
         enddo
@@ -306,7 +299,6 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
         ! In addition to that we can average over the small group,
         ! because I'm a grown up and I do whatever I want.
 
-        ! MMig: I'm not too sure about what is done here.. I'll need to see the eqs.
         ! Maybe we should 'un-rotate' the angular momentum before summing
         allocate(m1(nb,nb))
         allocate(m2(nb,nb))
@@ -324,11 +316,10 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
 
                 do j=1,p%na
                     cw0=conjg(m1( (j-1)*3+1:j*3,b1 ))
-                    ! cw1=m1( (j-1)*3+1:j*3,b1 ) ! MMig: shouldn't it be b2?
                     cw1=m1( (j-1)*3+1:j*3,b2 )
                     do ibeta=1,3
                     do igamma=1,3
-                        ! MMig: re-sandwiching lcv here? Why not do it sooner?
+                        ! MMig: wouldn't using the Dq matrix be easier?
                         m2(b1,b2)=m2(b1,b2) - lo_imag * lcv(ialpha,ibeta,igamma)*cw0(ibeta)*cw1(igamma)
                     enddo
                     enddo
@@ -351,7 +342,14 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
     deallocate(v1)
 
     ! Maybe a final average over the small group? Yes no maybe. Seems reasonable.
-    ! Commented out for now because symmetry is complicated.
+    ! from tests, it seems ok, didn't test thoroughly though
+    ! ! test
+    ! do b1=1,nb
+    ! do b2=1,nb
+    !     WRITE(77,'(3(es16.4,1x))') Lalpha(:,b1,b2)
+    ! end do
+    ! end do
+
     do b1=1,nb
     do b2=1,nb
         if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
@@ -373,6 +371,13 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
         Lalpha(:,b1,b2)=cw1/real(qpoint%n_invariant_operation)
     enddo
     enddo
+
+    ! test
+    ! do b1=1,nb
+    ! do b2=1,nb
+    !     WRITE(78,'(3(es16.4,1x))') Lalpha(:,b1,b2)
+    ! end do
+    ! end do
 end subroutine
 
 end submodule
