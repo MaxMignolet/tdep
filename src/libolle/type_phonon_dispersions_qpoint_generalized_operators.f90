@@ -113,18 +113,30 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
         allocate(m2(nb,nb))
         m1=0.0_r8
         m2=0.0_r8
-        do i=1,qpoint%n_invariant_operation
-            iop=qpoint%invariant_operation(i)
-            call lo_eigenvector_transformation_matrix(rotmat,p%rcart,qpoint%r,p%sym%op(iop))
-            m1 = matmul(rotmat,m0)
+        if (.false.) then ! symmetrizatino with little group
+            do i=1,qpoint%n_invariant_operation
+                iop=qpoint%invariant_operation(i)
+                call lo_eigenvector_transformation_matrix(rotmat,p%rcart,qpoint%r,p%sym%op(iop))
+                m1 = matmul(rotmat,m0)
+                ! if iop<0 conjugate the eigvec
+                if (iop < 0) m1 = conjg(m1)
+
+                do b1=1,nb
+                do b2=1,nb
+                    m2(b1,b2)=m2(b1,b2)+dot_product(m1(:,b1),matmul(Dq(:,:,ialpha),m1(:,b2)))
+                enddo
+                enddo
+            enddo
+            ! m2 holds the component ialpha of the generalized velocity
+            m2=m2/real(qpoint%n_invariant_operation,r8)
+        else
             do b1=1,nb
             do b2=1,nb
-                m2(b1,b2)=m2(b1,b2)+dot_product(m1(:,b1),matmul(Dq(:,:,ialpha),m1(:,b2)))
+                m2(b1,b2)=m2(b1,b2)+dot_product(m0(:,b1),matmul(Dq(:,:,ialpha),m0(:,b2)))
             enddo
             enddo
-        enddo
-        ! m2 holds the component ialpha of the generalized velocity
-        m2=m2/real(qpoint%n_invariant_operation,r8)
+            ! m2 holds the component ialpha of the generalized velocity
+        end if
 
         ! Make sure the degeneracies hold
         do b1=1,nb
@@ -156,24 +168,24 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
     deallocate(modefixed)
     deallocate(v1)
 
-    ! Maybe a final average over the small group? Yes no maybe. Seems reasonable.
-    do b1=1,nb
-    do b2=1,nb
-        if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
-        if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
-        w0=genvel(:,b1,b2)
-        w1=0.0_r8
-        do i=1,qpoint%n_invariant_operation
-            iop=qpoint%invariant_operation(i)
-            if ( iop .gt. 0 ) then
-                w1=w1+matmul(p%sym%op(iop)%m,w0)
-            else
-                w1=w1-matmul(p%sym%op(iop)%m,w0)
-            endif
-        enddo
-        genvel(:,b1,b2)=w1/real(qpoint%n_invariant_operation)
-    enddo
-    enddo
+    ! ! Maybe a final average over the small group? Yes no maybe. Seems reasonable.
+    ! do b1=1,nb
+    ! do b2=1,nb
+    !     if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
+    !     if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
+    !     w0=genvel(:,b1,b2)
+    !     w1=0.0_r8
+    !     do i=1,qpoint%n_invariant_operation
+    !         iop=qpoint%invariant_operation(i)
+    !         if ( iop .gt. 0 ) then
+    !             w1=w1+matmul(p%sym%op(iop)%m,w0)
+    !         else
+    !             w1=w1-matmul(p%sym%op(iop)%m,w0)
+    !         endif
+    !     enddo
+    !     genvel(:,b1,b2)=w1/real(qpoint%n_invariant_operation)
+    ! enddo
+    ! enddo
 end subroutine
 
 !> returns the \mathbb{L}_{\alpha} thingy I defined
@@ -299,24 +311,52 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
         ! In addition to that we can average over the small group,
         ! because I'm a grown up and I do whatever I want.
 
-        ! Maybe we should 'un-rotate' the angular momentum before summing
-        allocate(m1(nb,nb))
-        allocate(m2(nb,nb))
-        m1=0.0_r8
-        m2=0.0_r8
-        do i=1,qpoint%n_invariant_operation
-            iop=qpoint%invariant_operation(i)
-            call lo_eigenvector_transformation_matrix(rotmat,p%rcart,qpoint%r,p%sym%op(iop))
-            m1 = matmul(rotmat,m0)
+        if (.false.) then ! use q little group to symmetrize
+            ! Maybe we should 'un-rotate' the angular momentum before summing
+            allocate(m1(nb,nb))
+            allocate(m2(nb,nb))
+            m1=0.0_r8
+            m2=0.0_r8
+            do i=1,qpoint%n_invariant_operation
+                iop=qpoint%invariant_operation(i)
+                call lo_eigenvector_transformation_matrix(rotmat,p%rcart,qpoint%r,p%sym%op(iop))
+                m1 = matmul(rotmat,m0)
 
+                do b1=1,nb
+                do b2=1,nb
+                    if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
+                    if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
+
+                    do j=1,p%na
+                        cw0=conjg(m1( (j-1)*3+1:j*3,b1 ))
+                        cw1=      m1( (j-1)*3+1:j*3,b2 )
+                        do ibeta=1,3
+                        do igamma=1,3
+                            ! MMig: wouldn't using the Dq matrix be easier?
+                            m2(b1,b2)=m2(b1,b2) - lo_imag * lcv(ialpha,ibeta,igamma)*cw0(ibeta)*cw1(igamma)
+                        enddo
+                        enddo
+                    enddo
+                enddo
+                enddo
+            enddo
+            Lalpha(ialpha,:,:)=m2/real(qpoint%n_invariant_operation,r8)
+            ! Not sure how to store .. m2 should be purely imaginary at this point. Possibly.
+            ! The diagonal should be purely imaginary, not sure about the rest.
+
+            deallocate(m1)
+            deallocate(m2)
+        else ! do not use q little group to symmetrize
+            allocate(m2(nb,nb))
+            m2=0.0_r8
             do b1=1,nb
             do b2=1,nb
                 if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
                 if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
 
                 do j=1,p%na
-                    cw0=conjg(m1( (j-1)*3+1:j*3,b1 ))
-                    cw1=m1( (j-1)*3+1:j*3,b2 )
+                    cw0=conjg(m0( (j-1)*3+1:j*3,b1 ))
+                    cw1=      m0( (j-1)*3+1:j*3,b2 )
                     do ibeta=1,3
                     do igamma=1,3
                         ! MMig: wouldn't using the Dq matrix be easier?
@@ -326,13 +366,9 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
                 enddo
             enddo
             enddo
-        enddo
-        Lalpha(ialpha,:,:)=m2/real(qpoint%n_invariant_operation,r8)
-        ! Not sure how to store .. m2 should be purely imaginary at this point. Possibly.
-        ! The diagonal should be purely imaginary, not sure about the rest.
-
-        deallocate(m1)
-        deallocate(m2)
+            Lalpha(ialpha,:,:)=m2
+            deallocate(m2)
+        end if
     enddo
 
     deallocate(Dq)
@@ -350,27 +386,28 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
     ! end do
     ! end do
 
-    do b1=1,nb
-    do b2=1,nb
-        if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
-        if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
-        cw0=Lalpha(:,b1,b2)
-        cw1=0.0_r8
-        do i=1,qpoint%n_invariant_operation
-            iop=qpoint%invariant_operation(i)
-            if ( iop .gt. 0 ) then
-                ! pseudovector so det(op) in front.
-                f0=lo_determ(p%sym%op(iop)%m)
-                cw1=cw1+f0*matmul(p%sym%op(iop)%m,cw0)
-            else
-                ! this means time reversal
-                f0=lo_determ(p%sym%op(iop)%m)
-                cw1=cw1-f0*matmul(p%sym%op(iop)%m,cw0)
-            endif
-        enddo
-        Lalpha(:,b1,b2)=cw1/real(qpoint%n_invariant_operation)
-    enddo
-    enddo
+    ! do b1=1,nb
+    ! do b2=1,nb
+    !     if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
+    !     if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
+    !     cw0=Lalpha(:,b1,b2)
+    !     cw1=0.0_r8
+    !     do i=1,qpoint%n_invariant_operation
+    !         iop=qpoint%invariant_operation(i)
+    !         if ( iop .gt. 0 ) then
+    !             ! pseudovector so det(op) in front.
+    !             f0=lo_determ(p%sym%op(iop)%m)
+    !             cw1=cw1+f0*matmul(p%sym%op(iop)%m,cw0)
+    !         else
+    !             WRITE(*,*) "Hoi, this is experimental."
+    !             ! this means time reversal
+    !             f0=lo_determ(p%sym%op(iop)%m)
+    !             cw1=cw1-f0*matmul(p%sym%op(iop)%m,cw0)
+    !         endif
+    !     enddo
+    !     Lalpha(:,b1,b2)=cw1/real(qpoint%n_invariant_operation)
+    ! enddo
+    ! enddo
 
     ! test
     ! do b1=1,nb
