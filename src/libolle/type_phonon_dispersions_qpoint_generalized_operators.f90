@@ -33,6 +33,7 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
     real(r8) :: f0
     logical, dimension(:), allocatable :: modefixed
     integer :: i,j,ii,jj,ialpha,b1,b2,nb,iop
+    logical, parameter :: use_syms = .false.
 
     nb=p%na*3
 
@@ -113,7 +114,7 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
         allocate(m2(nb,nb))
         m1=0.0_r8
         m2=0.0_r8
-        if (.false.) then ! symmetrizatino with little group
+        if (use_syms) then ! symmetrization with little group
             do i=1,qpoint%n_invariant_operation
                 iop=qpoint%invariant_operation(i)
                 call lo_eigenvector_transformation_matrix(rotmat,p%rcart,qpoint%r,p%sym%op(iop))
@@ -168,24 +169,26 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
     deallocate(modefixed)
     deallocate(v1)
 
-    ! ! Maybe a final average over the small group? Yes no maybe. Seems reasonable.
-    ! do b1=1,nb
-    ! do b2=1,nb
-    !     if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
-    !     if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
-    !     w0=genvel(:,b1,b2)
-    !     w1=0.0_r8
-    !     do i=1,qpoint%n_invariant_operation
-    !         iop=qpoint%invariant_operation(i)
-    !         if ( iop .gt. 0 ) then
-    !             w1=w1+matmul(p%sym%op(iop)%m,w0)
-    !         else
-    !             w1=w1-matmul(p%sym%op(iop)%m,w0)
-    !         endif
-    !     enddo
-    !     genvel(:,b1,b2)=w1/real(qpoint%n_invariant_operation)
-    ! enddo
-    ! enddo
+    ! Maybe a final average over the small group? Yes no maybe. Seems reasonable.
+    if (use_syms) then
+    do b1=1,nb
+    do b2=1,nb
+        if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
+        if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
+        w0=genvel(:,b1,b2)
+        w1=0.0_r8
+        do i=1,qpoint%n_invariant_operation
+            iop=qpoint%invariant_operation(i)
+            if ( iop .gt. 0 ) then
+                w1=w1+matmul(p%sym%op(iop)%m,w0)
+            else
+                w1=w1-matmul(p%sym%op(iop)%m,w0)
+            endif
+        enddo
+        genvel(:,b1,b2)=w1/real(qpoint%n_invariant_operation)
+    enddo
+    enddo
+    end if
 end subroutine
 
 !> returns the \mathbb{L}_{\alpha} thingy I defined
@@ -209,6 +212,8 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
     real(r8) :: f0
     logical, dimension(:), allocatable :: modefixed
     integer :: i,j,ii,jj,ialpha,ibeta,igamma,b1,b2,nb,iop
+    logical, parameter :: use_syms = .false.
+
 
     ! levi-cevita tensor
     lcv=0
@@ -311,7 +316,7 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
         ! In addition to that we can average over the small group,
         ! because I'm a grown up and I do whatever I want.
 
-        if (.false.) then ! use q little group to symmetrize
+        if (use_syms) then ! use q little group to symmetrize
             ! Maybe we should 'un-rotate' the angular momentum before summing
             allocate(m1(nb,nb))
             allocate(m2(nb,nb))
@@ -386,28 +391,30 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
     ! end do
     ! end do
 
-    ! do b1=1,nb
-    ! do b2=1,nb
-    !     if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
-    !     if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
-    !     cw0=Lalpha(:,b1,b2)
-    !     cw1=0.0_r8
-    !     do i=1,qpoint%n_invariant_operation
-    !         iop=qpoint%invariant_operation(i)
-    !         if ( iop .gt. 0 ) then
-    !             ! pseudovector so det(op) in front.
-    !             f0=lo_determ(p%sym%op(iop)%m)
-    !             cw1=cw1+f0*matmul(p%sym%op(iop)%m,cw0)
-    !         else
-    !             WRITE(*,*) "Hoi, this is experimental."
-    !             ! this means time reversal
-    !             f0=lo_determ(p%sym%op(iop)%m)
-    !             cw1=cw1-f0*matmul(p%sym%op(iop)%m,cw0)
-    !         endif
-    !     enddo
-    !     Lalpha(:,b1,b2)=cw1/real(qpoint%n_invariant_operation)
-    ! enddo
-    ! enddo
+    if (use_syms) then
+    do b1=1,nb
+    do b2=1,nb
+        if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
+        if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
+        cw0=Lalpha(:,b1,b2)
+        cw1=0.0_r8
+        do i=1,qpoint%n_invariant_operation
+            iop=qpoint%invariant_operation(i)
+            if ( iop .gt. 0 ) then
+                ! pseudovector so det(op) in front.
+                f0=lo_determ(p%sym%op(iop)%m)
+                cw1=cw1+f0*matmul(p%sym%op(iop)%m,cw0)
+            else
+                WRITE(*,*) "Hoi, this is experimental."
+                ! this means time reversal
+                f0=lo_determ(p%sym%op(iop)%m)
+                cw1=cw1-f0*matmul(p%sym%op(iop)%m,cw0)
+            endif
+        enddo
+        Lalpha(:,b1,b2)=cw1/real(qpoint%n_invariant_operation)
+    enddo
+    enddo
+    end if
 
     ! test
     ! do b1=1,nb
