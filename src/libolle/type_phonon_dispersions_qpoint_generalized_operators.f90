@@ -22,14 +22,14 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
     !> qpoint
     class(lo_qpoint), intent(in) :: qpoint
     !> generalized group velocities (xyz,mode,mode)
-    real(r8), dimension(:,:,:), intent(out) :: genvel
+    complex(r8), dimension(:,:,:), intent(out) :: genvel
     !> memory helper
     type(lo_mem_helper), intent(inout) :: mem
 
     complex(r8), dimension(:,:,:), allocatable :: Dq
     complex(r8), dimension(:,:), allocatable :: m0,m1,m2,m3,rotmat
     real(r8), dimension(:), allocatable :: v0,v1
-    real(r8), dimension(3) :: w0,w1
+    complex(r8), dimension(3) :: w0,w1
     real(r8) :: f0
     logical, dimension(:), allocatable :: modefixed
     integer :: i,j,ii,jj,ialpha,b1,b2,nb,iop
@@ -156,7 +156,7 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
         do b2=1,nb
             if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
             if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
-            genvel(ialpha,b1,b2)=real( m2(b1,b2) / (2*sqrt(ompoint%omega(b1)*ompoint%omega(b2))), r8)
+            genvel(ialpha,b1,b2) = m2(b1,b2) / (2*sqrt(ompoint%omega(b1)*ompoint%omega(b2)))
         enddo
         enddo
 

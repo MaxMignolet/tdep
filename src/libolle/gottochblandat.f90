@@ -153,6 +153,7 @@ end interface
 !> double outer products
 interface lo_outer_outerproduct
     module procedure lo_real_outer_outerproduct
+    module procedure lo_cplx_outer_outerproduct
 end interface
 !> make tensors flat
 interface lo_flattentensor
@@ -382,6 +383,12 @@ interface
         real(flyt), dimension(3), intent(in) :: b
         real(flyt), dimension(3), intent(in) :: c
         real(flyt), dimension(3,3,3) :: m
+    end function
+    module pure function lo_cplx_outer_outerproduct(a,b,c) result(m)
+        complex(flyt), dimension(3), intent(in) :: a
+        complex(flyt), dimension(3), intent(in) :: b
+        complex(flyt), dimension(3), intent(in) :: c
+        complex(flyt), dimension(3,3,3) :: m
     end function
     module pure function lo_determ_real(a) result(det)
         real(flyt), dimension(3,3), intent(in) :: a

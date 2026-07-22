@@ -196,7 +196,7 @@ interface
         type(lo_crystalstructure), intent(in) :: p
         type(lo_forceconstant_secondorder), intent(inout) :: fc
         class(lo_qpoint), intent(in) :: qpoint
-        real(r8), dimension(:,:,:), intent(out) :: genvel
+        complex(r8), dimension(:,:,:), intent(out) :: genvel
         type(lo_mem_helper), intent(inout) :: mem
     end subroutine
     module subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
@@ -884,8 +884,8 @@ pure function phonon_entropy(dr, temperature, modenum, sitenum) result(s)
 end function
 
 !> calculate phonon angular momentum matrix
-subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, alpha,\
-                                          beta, torque, mw, mem)
+subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
+                                          kappa, torque_cRTA, mw, mem)
     !> dispersion relations
     class(lo_phonon_dispersions), intent(in) :: dr
     !> qpoint mesh
@@ -897,11 +897,12 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, alpha,\
     !> temperature
     real(r8), intent(in) :: temperature
     !> displacement covariance matrix / angular momentum generation matrix
-    real(r8), dimension(3, 3), intent(out) :: alpha
+    real(r8), dimension(3, 3), intent(out) :: g
     !> angular momentum transport matrix
-    real(r8), dimension(3, 3, 3), intent(out) :: beta
-    !> torque matrix (torque induced by temp. gradient)
-    real(r8), dimension(3, 3), intent(out) :: torque
+    real(r8), dimension(3, 3, 3), intent(out) :: kappa
+    !> torque matrix (within cRTA)
+    !> see Zhang25, Measurement of phonon angular momentum, https://doi.org/10.1038/s41567-025-02952-3
+    real(r8), dimension(3, 3), intent(out) :: torque_cRTA
     !> MPI helper
     type(lo_mpi_helper), intent(inout) :: mw
     !> memory helper
@@ -925,20 +926,23 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, alpha,\
 
     ! Calculate actual angular momentum thingy
     calc: block
-        real(r8), dimension(:,:,:), allocatable :: vel_ssp
-        complex(r8), dimension(:,:,:), allocatable :: angmom_ssp
-        real(r8), dimension(3, 3) :: alpha_contrib, torque_contrib
-        real(r8), dimension(3, 3, 3) :: beta_contrib
-        real(r8), dimension(3) :: angmom, vel
-        real(r8) :: f0, f0_tau
-        integer :: i, j, k, l, nat3
+        complex(r8), dimension(:,:,:), allocatable :: vel
+        complex(r8), dimension(:,:,:), allocatable :: angmom
+        real(r8), dimension(3, 3) :: g_contrib,torque_cRTA_contrib
+        complex(r8), dimension(3, 3, 3) :: kappa_contrib
+        real(r8) :: om_s1,cv_s1,dndT_s1,lw_s1
+        real(r8) :: om_s2,cv_s2,dndT_s2,lw_s2
+        real(r8) :: lw_s1s2
+        real(r8) :: weight_q
+        integer :: i,k,l,nat3
+        integer :: s1,s2,s3
 
-        alpha = 0.0_r8
-        beta = 0.0_r8
-        torque = 0.0_r8
+        g = 0.0_r8
+        torque_cRTA = 0.0_r8
+        kappa = 0.0_r8
         nat3 = uc%na*3
-        ALLOCATE(vel_ssp(3,nat3,nat3)) ! vel_{alpha,s,s'}
-        ALLOCATE(angmom_ssp(3,nat3,nat3)) ! L_{alpha,s,s'}
+        ALLOCATE(vel(3,nat3,nat3)) ! vel_{alpha,s,s'} ! cart dir, imode, imode
+        ALLOCATE(angmom(3,nat3,nat3)) ! L_{alpha,s,s'} ! cart dir, imode, imode
 
         l = 0
         do i = 1, qp%n_full_point
@@ -946,61 +950,96 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, alpha,\
             ! not my job, I let others do the work
             if (mod(l, mw%n) .ne. mw%r) cycle
 
-            call dr%aq(i)%return_generalized_group_velocity(uc,fc,qp%ap(i),vel_ssp,mem)
-            call dr%aq(i)%return_generalized_angmom(uc,qp%ap(i),angmom_ssp)
+            call dr%aq(i)%return_generalized_group_velocity(uc,fc,qp%ap(i),vel,mem)
+            call dr%aq(i)%return_generalized_angmom(uc,qp%ap(i),angmom)
 
-            do j = 1, dr%n_mode ! we only look at the diagonal contrib for now..
+            do s1 = 1, dr%n_mode
+            do s2 = 1, dr%n_mode
                 ! Don't care for acoustic modes
-                if ( dr%aq(i)%omega(j) .lt. lo_freqtol ) cycle
-                ! group velocity
-                ! vel = dr%aq(i)%vel(:, j)
-                vel = vel_ssp(:,j,j)
+                if ( dr%aq(i)%omega(s1) .lt. lo_freqtol ) cycle
+                if ( dr%aq(i)%omega(s2) .lt. lo_freqtol ) cycle
 
-                angmom(:) = real(angmom_ssp(:,j,j)) ! diag part is at least real
-                ! WRITE(*,*) angmom
+                ! freq, c_v and dn/dT
+                ! if I wanted to optimize I could put all these in arrays over imode ad then iterate
+                ! smthng like:
+                !   om = dr%aq(i)%omega(:)
+                !   cv = lo_harmonic_oscillator_cv(temperature, om(:))
+                !   dndT = ...
+                !   do s1 = 1,n
+                !   do s2 = 1,n
+                !     om_s1 = om(s1)
+                !     ...
+                !   end do
+                ! but I'm not convinced the speedup will be significantly useful
+                om_s1 = dr%aq(i)%omega(s1)
+                cv_s1 = lo_harmonic_oscillator_cv(temperature, om_s1)
+                dndT_s1 = cv_s1/om_s1
 
-                ! dn/dT
-                f0 = lo_harmonic_oscillator_cv(temperature, dr%aq(i)%omega(j))/dr%aq(i)%omega(j)
+                om_s2 = dr%aq(i)%omega(s2)
+                cv_s2 = lo_harmonic_oscillator_cv(temperature, om_s2)
+                dndT_s2 = cv_s2/om_s2
 
-                f0 = f0*qp%ap(i)%integration_weight
+                weight_q = qp%ap(i)%integration_weight
+
                 if (havetau) then
-                    ! Multiplication by tau
+                    ! get linewidth ~lifetime~
                     k = qp%ap(i)%irreducible_index
-                    f0_tau = f0/(2.0_r8*dr%iq(k)%linewidth(j))
+                    lw_s1 = dr%iq(k)%linewidth(s1)
+                    lw_s2 = dr%iq(k)%linewidth(s2)
                 else
-                    ! Multiplication by random constant number
-                    f0_tau = f0*faketau
+                    ! tau = faketau ! random constant number
+                    ! tau = 1/2lw <=> lw = 1/2tau
+                    lw_s1 = 1/(2.0_r8*faketau)
+                    lw_s2 = lw_s1
                 end if
-                ! I might have to reverse the order of the arguments in outerproduct
-                ! as it seems to flip them to obey some column/row-major conversion
-                ! for some reason..., this essantially flips the off-diag component
-                ! which may have opposite signs... (but that is not a real issue
-                ! for time being
 
-                ! alpha = alpha - lo_outerproduct(angmom_sym, vel_sym)*f0_tau
-                ! torque = torque - lo_outerproduct(angmom_sym, vel_sym)*f0
-                alpha_contrib = - lo_outerproduct(angmom, vel)*f0_tau
-                beta_contrib = - lo_outer_outerproduct(angmom, vel, vel)*f0_tau
-                torque_contrib = - lo_outerproduct(angmom, vel)*f0
-                alpha = alpha + alpha_contrib
-                beta = beta + beta_contrib
-                torque = torque + torque_contrib
+                lw_s1s2 = (lw_s1 + lw_s2) / ((om_s1 - om_s2)**2 + (lw_s1 + lw_s2)**2) ! gen. linewidth
+
+                ! lo_outerproduct: c(i,j) = conjg(a(j)) * b(i) -> I need to counter that...
+                ! lo_outer_outerproduct: d(i,j,k) = a(i) * b(j) * c(k) -> this is fine
+
+                ! PAM generation matrix
+                ! l_s1s2(i) * v_s2s1(j) = lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2))
+                ! since conjg(v_s1s2) = v_s2s1
+                g_contrib = real(lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2)) * (cv_s1+cv_s2)/(2*sqrt(om_s1*om_s2)) * lw_s1s2) ! I removed a factor 1/2 w.r.t. my notes (I suspect it to be wrong)
+
+                ! PAM cRTA torque matrix (see Zhang25, Measurement of phonon angular momentum, https://doi.org/10.1038/s41567-025-02952-3)
+                ! I guess this one should only be computed over the mode-diagonal... (I have no idea)
+                torque_cRTA_contrib = 0
+                if (s1 == s2) then
+                    torque_cRTA_contrib = real(lo_outerproduct(vel(:,s1,s1),angmom(:,s1,s1)) * dndT_s1)
+                end if
+
+                ! PAM transport matrix
+                kappa_contrib = 0
+                do s3 = 1, dr%n_mode
+                    kappa_contrib = kappa_contrib + real(lo_outer_outerproduct(angmom(:,s1,s3), vel(:,s3,s2), vel(:,s2,s1)) * (dndT_s1+dndT_s2)/2 * lw_s1s2)
+                    ! not sure I have the right to take the real part here...
+                end do
+
+                ! accumulating things
+                g = g + g_contrib*weight_q
+                kappa = kappa + kappa_contrib*weight_q
+                torque_cRTA = torque_cRTA + torque_cRTA_contrib*weight_q
+
+                ! DEBUG
                 ! WRITE(66,'(3(f5.3,1x))') qp%ap(i)%r
                 ! WRITE(66,'(8x,3(3e16.7,1x),1x)') alpha(1,2), alpha(2,1), alpha_contrib(1,2), alpha_contrib(2,1)
                 ! WRITE(66,'(8x,3(3e16.7,1x),1x)') torque(1,2), torque(2,1), torque_contrib(1,2), torque_contrib(2,1)
             end do
+            end do
         end do
-        DEALLOCATE(vel_ssp)
-        DEALLOCATE(angmom_ssp)
+        DEALLOCATE(vel)
+        DEALLOCATE(angmom)
         ! wouldn't a simple mw%reduce() do the trick? I'll leave the allreduce for the moment...
-        call mw%allreduce('sum', alpha)
-        call mw%allreduce('sum', beta)
-        call mw%allreduce('sum', torque)
+        call mw%allreduce('sum', g)
+        call mw%allreduce('sum', torque_cRTA)
+        call mw%allreduce('sum', kappa)
         ! And finally scale with volume. I should really do a
         ! dimensionality analysis on this to figure out the unit.
-        alpha = alpha/uc%volume
-        beta = beta/uc%volume
-        torque = torque/uc%volume
+        g = g/uc%volume
+        kappa = kappa/uc%volume
+        torque_cRTA = torque_cRTA/uc%volume
         ! f0 = norm2(alpha)
         ! alpha = lo_chop(alpha, f0*1E-10_r8)
     end block calc

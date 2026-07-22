@@ -162,6 +162,7 @@ module pure function lo_complex_outerproduct(a,b) result(m)
 end function
 
 !> double outer product between 3 real vectors of length 3
+!> be cautious about the convention, here it is d(i,j,k) = a(i) * b(j) * c(k)
 module pure function lo_real_outer_outerproduct(a,b,c) result(m)
     !> first vector
     real(flyt), dimension(3), intent(in) :: a
@@ -182,7 +183,30 @@ module pure function lo_real_outer_outerproduct(a,b,c) result(m)
             end do
         end do
     end do
+end function
 
+!> double outer product between 3 real vectors of length 3
+!> be cautious about the convention, here it is d(i,j,k) = a(i) * b(j) * c(k)
+module pure function lo_cplx_outer_outerproduct(a,b,c) result(m)
+    !> first vector
+    complex(flyt), dimension(3), intent(in) :: a
+    !> second vector
+    complex(flyt), dimension(3), intent(in) :: b
+    !> third vector
+    complex(flyt), dimension(3), intent(in) :: c
+    !> cross product
+    complex(flyt), dimension(3,3,3) :: m
+    !> some indices
+    integer :: i,j,k
+
+    ! not sure it's worth trying to optimize this
+    do k=1,3
+        do j=1,3
+            do i=1,3
+                m(i,j,k) = a(i)*b(j)*c(k)
+            end do
+        end do
+    end do
 end function
 
 !> Determinant of a 3x3 matrix, doubles
