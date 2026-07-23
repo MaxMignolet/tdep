@@ -85,6 +85,9 @@ path: block
         call bs%generate(uc, fc, timereversal=opts%timereversal, mw=mw, mem=mem, verbosity=verb, &
                          npts=opts%nq, readpathfromfile=opts%readpathfromfile)
     end if
+    if (opts%PAM_path) then
+        call bs%generate_PAM(...) ! to implement
+    end if
 
     ! Write a small summary
     if (mw%talk) then
@@ -94,6 +97,7 @@ path: block
         write (lo_iou, *) '                number of bands: ', tochar(bs%n_mode)
         write (lo_iou, *) '                number of paths: ', tochar(bs%n_path)
         write (lo_iou, *) '  number of points on each path: ', tochar(bs%n_point_per_path)
+        write (lo_iou, *) '   ph. angular momentum setting: ', opts%PAM_path
         write (lo_iou, *) ''
         do i = 1, bs%n_path
             write (lo_iou, *) '        path '//tochar(i)//': from '//trim(bs%symb_q_start(i))//' to '//trim(bs%symb_q_end(i))
@@ -114,6 +118,9 @@ path: block
         call bs%write_dispersive_property(opts%enhet, 'groupvelocity', 'outfile.group_velocities', opts%pdfplot)
         if (opts%gruneisen) then
             call bs%write_dispersive_property(opts%enhet, 'gruneisen', 'outfile.mode_gruneisen_parameters', .false.)
+        end if
+        if (opts%PAM_path) then
+            call bs%write_dispersive_property(opts%enhet, 'PAM', 'outfile.phangmom', opts%pdfplot)
         end if
     end if
 end block path

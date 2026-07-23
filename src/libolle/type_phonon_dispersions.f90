@@ -6,7 +6,8 @@ use konstanter, only: r8, i8, lo_huge, lo_hugeint, lo_degenvector, lo_status, lo
                       lo_sqtol, lo_temperaturetol, &
                       lo_status, lo_hbar_hartree, lo_frequency_Hartree_to_Hz, lo_groupvel_HartreeBohr_to_ms, &
                       lo_exitcode_param, lo_hartree_to_eV, lo_bohr_to_m, lo_kappa_au_to_SI, lo_kb_hartree, &
-                      lo_Hartree_to_Joule, lo_exitcode_physical, lo_imag, lo_time_s_to_au
+                      lo_Hartree_to_Joule, lo_exitcode_physical, lo_imag, lo_time_s_to_au, &
+                      lo_hbar_Joule, lo_time_au_to_fs, lo_time_au_to_s ! temp debug
 use gottochblandat, only: open_file, walltime, tochar, lo_trueNtimes, lo_classical_harmonic_oscillator_free_energy, &
                           lo_harmonic_oscillator_cv, lo_harmonic_oscillator_entropy, lo_harmonic_oscillator_free_energy, &
                           lo_planck, lo_sqnorm, lo_progressbar_init, lo_progressbar, qsort, lo_outerproduct, lo_outer_outerproduct,&
@@ -37,6 +38,8 @@ type lo_phonon_dispersions_qpoint
     real(r8), dimension(:, :), allocatable :: vel
     !> mode eigenvectors
     complex(r8), dimension(:, :), allocatable :: egv
+    !> phonon angular momentum (3,mode) (mode-diagonal part only)
+    real(r8), dimension(:, :), allocatable :: phangmom
     !> mode gruneisen parameter
     real(r8), dimension(:), allocatable :: gruneisen
     !> linewidth
@@ -910,6 +913,8 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
 
     real(r8), parameter :: faketau = 10E-12_r8*lo_time_s_to_au ! lifetime of 10 ps
     logical :: havetau
+    real(r8), dimension(3, 3) :: kappa_th ! thermal conductivity for test/comparison
+    real(r8), dimension(3, 3) :: torque ! PAM torque
 
     ! Some initial things
     init: block
@@ -930,6 +935,8 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
         complex(r8), dimension(:,:,:), allocatable :: angmom
         real(r8), dimension(3, 3) :: g_contrib,torque_cRTA_contrib
         complex(r8), dimension(3, 3, 3) :: kappa_contrib
+        real(r8), dimension(3, 3) :: kappa_th_contrib
+        real(r8), dimension(3, 3) :: torque_contrib
         real(r8) :: om_s1,cv_s1,dndT_s1,lw_s1
         real(r8) :: om_s2,cv_s2,dndT_s2,lw_s2
         real(r8) :: lw_s1s2
@@ -937,7 +944,9 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
         integer :: i,k,l,nat3
         integer :: s1,s2,s3
 
+        kappa_th = 0.0_r8
         g = 0.0_r8
+        torque = 0.0_r8
         torque_cRTA = 0.0_r8
         kappa = 0.0_r8
         nat3 = uc%na*3
@@ -960,16 +969,8 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
                 if ( dr%aq(i)%omega(s2) .lt. lo_freqtol ) cycle
 
                 ! freq, c_v and dn/dT
-                ! if I wanted to optimize I could put all these in arrays over imode ad then iterate
-                ! smthng like:
-                !   om = dr%aq(i)%omega(:)
-                !   cv = lo_harmonic_oscillator_cv(temperature, om(:))
-                !   dndT = ...
-                !   do s1 = 1,n
-                !   do s2 = 1,n
-                !     om_s1 = om(s1)
-                !     ...
-                !   end do
+                ! if I wanted to optimize I could put all these in arrays over imode and then iterate
+                ! instead of computing everything over and over
                 ! but I'm not convinced the speedup will be significantly useful
                 om_s1 = dr%aq(i)%omega(s1)
                 cv_s1 = lo_harmonic_oscillator_cv(temperature, om_s1)
@@ -998,28 +999,37 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
                 ! lo_outerproduct: c(i,j) = conjg(a(j)) * b(i) -> I need to counter that...
                 ! lo_outer_outerproduct: d(i,j,k) = a(i) * b(j) * c(k) -> this is fine
 
+                ! Heat conductivity matrix
+                kappa_th_contrib = real(lo_outerproduct(vel(:,s1,s2),vel(:,s1,s2))) * (cv_s1+cv_s2)/2 * lw_s1s2
+
                 ! PAM generation matrix
                 ! l_s1s2(i) * v_s2s1(j) = lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2))
                 ! since conjg(v_s1s2) = v_s2s1
-                g_contrib = real(lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2)) * (cv_s1+cv_s2)/(2*sqrt(om_s1*om_s2)) * lw_s1s2) ! I removed a factor 1/2 w.r.t. my notes (I suspect it to be wrong)
+                g_contrib = real(lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2))) * (cv_s1+cv_s2)/(2*sqrt(om_s1*om_s2)) * lw_s1s2 ! I removed a factor 1/2 w.r.t. my notes (I suspect it to be wrong)
+
+                ! PAM torque matrix
+                ! torque_contrib = aimag(lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2))) * (om_s1 - om_s2)/(2*sqrt(om_s1*om_s2)) * (dndT_s1+dndT_s2)/2 * lw_s1s2
+                torque_contrib = aimag(lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2))) * (om_s1 - om_s2)/(2*sqrt(om_s1*om_s2)) * (dndT_s1+dndT_s2)/2 * lw_s1s2
 
                 ! PAM cRTA torque matrix (see Zhang25, Measurement of phonon angular momentum, https://doi.org/10.1038/s41567-025-02952-3)
                 ! I guess this one should only be computed over the mode-diagonal... (I have no idea)
-                torque_cRTA_contrib = 0
+                torque_cRTA_contrib = 0.0_r8
                 if (s1 == s2) then
                     torque_cRTA_contrib = real(lo_outerproduct(vel(:,s1,s1),angmom(:,s1,s1)) * dndT_s1)
                 end if
 
                 ! PAM transport matrix
-                kappa_contrib = 0
+                kappa_contrib = 0.0_r8
                 do s3 = 1, dr%n_mode
                     kappa_contrib = kappa_contrib + real(lo_outer_outerproduct(angmom(:,s1,s3), vel(:,s3,s2), vel(:,s2,s1)) * (dndT_s1+dndT_s2)/2 * lw_s1s2)
                     ! not sure I have the right to take the real part here...
                 end do
 
                 ! accumulating things
+                kappa_th = kappa_th + kappa_th_contrib*weight_q
                 g = g + g_contrib*weight_q
-                kappa = kappa + kappa_contrib*weight_q
+                torque = torque + torque_contrib*weight_q
+                kappa = kappa + real(kappa_contrib)*weight_q
                 torque_cRTA = torque_cRTA + torque_cRTA_contrib*weight_q
 
                 ! DEBUG
@@ -1032,17 +1042,44 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
         DEALLOCATE(vel)
         DEALLOCATE(angmom)
         ! wouldn't a simple mw%reduce() do the trick? I'll leave the allreduce for the moment...
+        call mw%allreduce('sum', kappa_th)
         call mw%allreduce('sum', g)
+        call mw%allreduce('sum', torque)
         call mw%allreduce('sum', torque_cRTA)
         call mw%allreduce('sum', kappa)
-        ! And finally scale with volume. I should really do a
-        ! dimensionality analysis on this to figure out the unit.
+        ! And finally scale with volume
+        kappa_th = kappa_th/uc%volume
         g = g/uc%volume
+        torque = torque/uc%volume
         kappa = kappa/uc%volume
         torque_cRTA = torque_cRTA/uc%volume
         ! f0 = norm2(alpha)
         ! alpha = lo_chop(alpha, f0*1E-10_r8)
     end block calc
+
+    ! moved output from main.f90 to here
+    ! that way I don't have to modify interfaces all the time
+    if (mw%talk) then
+        write(*,*) 'Heat conductivity matrix: (units: W/m/K)'
+        write(*, "(1x,3(3(f10.6,1x),1x))") kappa_th(:,:)*lo_kappa_au_to_SI
+        write(*,*) 'Angular momentum generation matrix: (units: hbar/bohr^⁻2/K)'
+        write(*, "(1x,3(3(f10.6,1x),1x))") g(:,:)
+        write(*,*) 'Angular momentum generation matrix: (units: Js/m^⁻2/K)'
+        write(*, "(1x,3(3(e14.6,1x),1x))") g(:,:) * lo_hbar_Joule / lo_bohr_to_m**2 ! / lo_time_au_to_s
+        write(*,*) 'Ang. mom. torque matrix: (units: hbar/fs/bohr^⁻2/K)'
+        write(*, "(1x,3(3(e14.8,1x),1x))") torque(:,:) / lo_time_au_to_fs
+        write(*,*) 'Ang. mom. torque matrix: (units: J/m^⁻2/K)'
+        write(*, "(1x,3(3(e14.6,1x),1x))") torque(:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2 ! / lo_time_au_to_s
+        write(*,*) 'Ang. mom. cRTA torque matrix: (units: hbar/fs/bohr^⁻2/K)'
+        write(*, "(1x,3(3(e14.8,1x),1x))") torque_cRTA(:,:) / lo_time_au_to_fs
+        write(*,*) 'Ang. mom. cRTA torque matrix: (units: J/m^⁻2/K)'
+        write(*, "(1x,3(3(e14.6,1x),1x))") torque_cRTA(:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2 ! / lo_time_au_to_s
+        write(*,*) 'Angular momentum transport matrix: (units: TODO)'
+        write(*, "(5x,3(3(a14,1x),1x))") "-xx", "-yx", "-zx", "-xy", "-yy", "-zy", "-xz", "-yz", "-zz"
+        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "x--", kappa(1,:,:)
+        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "y--", kappa(2,:,:)
+        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "z--", kappa(3,:,:)
+    endif
 end subroutine
 
 !> Calculate the thermal displacement covariance matrix

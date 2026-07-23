@@ -67,6 +67,8 @@ module lo_phonon_bandstructure_on_path
         procedure :: allgather
         !> sort the bands for nicer plots
         procedure :: sort_bands
+        !> calculate the phangmom along path
+        procedure :: generate_phangmom
         !> write files
         procedure :: write_dispersive_property
         !> write files to hdf5
@@ -462,6 +464,41 @@ contains
         call mem%deallocate(egvbuf, persistent=.false., scalable=.false., file=__FILE__, line=__LINE__)
         call mem%deallocate(iperm, persistent=.false., scalable=.false., file=__FILE__, line=__LINE__)
         call mem%deallocate(matched, persistent=.false., scalable=.false., file=__FILE__, line=__LINE__)
+    end subroutine
+
+!> Compute phonon angular momentum over the path
+    subroutine generate_phangmom(bs, p, mw, verbosity)
+        !> bandstructure
+        class(lo_phonon_bandstructure), intent(inout) :: bs
+        !> crystal structure
+        type(lo_crystalstructure), intent(inout) :: p
+        !> MPI helper
+        type(lo_mpi_helper), intent(inout) :: mw
+        !> how much to talk
+        integer, intent(in) :: verbosity
+
+        complex(r8), allocatable :: gen_pam(:,:,:)
+        integer :: q,imode
+        ! type(lo_qpoint_bandstructure) :: qpoint
+
+        allocate(gen_pam(3,bs%n_mode,bs%n_mode))
+        do q = 1, bs%n_point
+            allocate (bs%p(q)%phangmom(3,bs%n_mode))
+        end do
+
+        do q = 1, bs%n_point
+            if (mod(q, mw%n) .ne. mw%r) cycle
+            ! qpoint = bs%q(q)
+            ! the actual dispersions
+            ! call bs%p(q)%return_generalized_angmom(p,qpoint,gen_pam)
+            call bs%p(q)%return_generalized_angmom(p,bs%q(q),gen_pam)
+            do imode = 1, bs%n_mode
+                bs%p(q)%phangmom(:,imode) = real(gen_pam(:,imode,imode))
+            end do
+        end do
+
+        ! all gather stuff
+        ! nothing I believe?
     end subroutine
 
 !> dump a dispersion plot

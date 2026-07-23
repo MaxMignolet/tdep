@@ -300,21 +300,21 @@ blockkappa: block
     ! Computing phangmom generation and transport tensors here
     if (mw%talk) write(*,*) 'Hello there'
     call dr%phonon_angular_momentum_matrix(qp, fc, uc, opts%temperature, alpha_angmom, beta_angmom, torque_angmom, mw, mem)
-    if (mw%talk) then
-        write(*,*) 'Angular momentum generation matrix: (units: hbar/bohr^⁻2/K)'
-        write(*, "(1x,3(3(f10.6,1x),1x))") alpha_angmom(:,:)
-        write(*,*) 'Angular momentum generation matrix: (units: Js/m^⁻2/K)'
-        write(*, "(1x,3(3(e14.6,1x),1x))") alpha_angmom(:,:) * lo_hbar_Joule / lo_bohr_to_m**2 ! / lo_time_au_to_s
-        write(*,*) 'Ang. mom. torque matrix: (units: hbar/fs/bohr^⁻2/K)'
-        write(*, "(1x,3(3(e14.8,1x),1x))") torque_angmom(:,:) / lo_time_au_to_fs
-        write(*,*) 'Ang. mom. torque matrix: (units: J/m^⁻2/K)'
-        write(*, "(1x,3(3(e14.6,1x),1x))") torque_angmom(:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2 ! / lo_time_au_to_s
-        write(*,*) 'Angular momentum transport matrix: (units: TODO)'
-        write(*, "(5x,3(3(a14,1x),1x))") "-xx", "-yx", "-zx", "-xy", "-yy", "-zy", "-xz", "-yz", "-zz"
-        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "x--", beta_angmom(1,:,:)
-        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "y--", beta_angmom(2,:,:)
-        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "z--", beta_angmom(3,:,:)
-    endif
+    ! if (mw%talk) then
+    !     write(*,*) 'Angular momentum generation matrix: (units: hbar/bohr^⁻2/K)'
+    !     write(*, "(1x,3(3(f10.6,1x),1x))") alpha_angmom(:,:)
+    !     write(*,*) 'Angular momentum generation matrix: (units: Js/m^⁻2/K)'
+    !     write(*, "(1x,3(3(e14.6,1x),1x))") alpha_angmom(:,:) * lo_hbar_Joule / lo_bohr_to_m**2 ! / lo_time_au_to_s
+    !     write(*,*) 'Ang. mom. torque matrix: (units: hbar/fs/bohr^⁻2/K)'
+    !     write(*, "(1x,3(3(e14.8,1x),1x))") torque_angmom(:,:) / lo_time_au_to_fs
+    !     write(*,*) 'Ang. mom. torque matrix: (units: J/m^⁻2/K)'
+    !     write(*, "(1x,3(3(e14.6,1x),1x))") torque_angmom(:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2 ! / lo_time_au_to_s
+    !     write(*,*) 'Angular momentum transport matrix: (units: TODO)'
+    !     write(*, "(5x,3(3(a14,1x),1x))") "-xx", "-yx", "-zx", "-xy", "-yy", "-zy", "-xz", "-yz", "-zz"
+    !     write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "x--", beta_angmom(1,:,:)
+    !     write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "y--", beta_angmom(2,:,:)
+    !     write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "z--", beta_angmom(3,:,:)
+    ! endif
     if (mw%talk) write(*,*) 'General Kenobi'
 
     ! First we get the cumulative kappa with the mean free path

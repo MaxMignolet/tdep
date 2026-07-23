@@ -288,7 +288,7 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
                 enddo
                 enddo
                 ! Figure out the mean eigenvalue
-                call lo_zheev(m1,v0,jobz='V')
+                call lo_zheev(m1,v0,jobz='V') ! the matrix is not hermitian as far as I know, to replace with zgeev
                 f0=sum(v0)/real(ompoint%degeneracy(b1),r8)
                 ! Rotate eigenvectors
                 do i=1,ompoint%degeneracy(b1)
@@ -364,7 +364,7 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
                     cw1=      m0( (j-1)*3+1:j*3,b2 )
                     do ibeta=1,3
                     do igamma=1,3
-                        ! MMig: wouldn't using the Dq matrix be easier?
+                        ! MMig: there is a missing hbar factor here, maybe not important
                         m2(b1,b2)=m2(b1,b2) - lo_imag * lcv(ialpha,ibeta,igamma)*cw0(ibeta)*cw1(igamma)
                     enddo
                     enddo
