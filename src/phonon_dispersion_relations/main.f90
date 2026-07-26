@@ -119,8 +119,10 @@ path: block
         if (opts%gruneisen) then
             call bs%write_dispersive_property(opts%enhet, 'gruneisen', 'outfile.mode_gruneisen_parameters', .false.)
         end if
-        if (opts%PAM_path) then
-            call bs%write_dispersive_property(opts%enhet, 'PAM', 'outfile.phangmom', opts%pdfplot)
+        if (opts%phangmom) then
+            call bs%write_dispersive_property(opts%enhet, 'phangmom', 'outfile.phangmom_x', opts%pdfplot)
+            call bs%write_dispersive_property(opts%enhet, 'phangmom', 'outfile.phangmom_y', opts%pdfplot)
+            call bs%write_dispersive_property(opts%enhet, 'phangmom', 'outfile.phangmom_z', opts%pdfplot)
         end if
     end if
 end block path
