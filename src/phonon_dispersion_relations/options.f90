@@ -41,6 +41,8 @@ type lo_opts
     integer, dimension(3) :: ssdim = -lo_hugeint
     integer :: nsample = -lo_hugeint
     logical :: U0 = .false.
+    ! hidden phonon angular momentum
+    logical :: phangmom = .false.
 contains
     procedure :: parse
 end type
@@ -176,6 +178,12 @@ subroutine parse(opts)
                  required=.false., act='store_true', def='.false.', error=lo_status)
     if (lo_status .ne. 0) stop
 
+! Phonon angular momentum
+    call cli%add(switch='--phangmom', hidden=.true., &
+                 help='Evaluate phonon angular momentum on the path', &
+                 required=.false., act='store_true', def='.false.', error=lo_status)
+    if (lo_status .ne. 0) stop
+
 ! actually parse it
     call cli%parse(error=lo_status)
     if (lo_status .ne. 0) stop
@@ -236,6 +244,8 @@ subroutine parse(opts)
 
     call cli%get(switch='--inelastic', val=opts%inelastic)
     call cli%get(switch='--U0', val=opts%U0)
+
+    call cli%get(switch='--phangmom', val=opts%phangmom)
 
 ! should the full mesh be calculated?
     opts%fullmesh = .false.

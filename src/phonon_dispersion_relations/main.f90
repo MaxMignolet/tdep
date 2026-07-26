@@ -85,8 +85,8 @@ path: block
         call bs%generate(uc, fc, timereversal=opts%timereversal, mw=mw, mem=mem, verbosity=verb, &
                          npts=opts%nq, readpathfromfile=opts%readpathfromfile)
     end if
-    if (opts%PAM_path) then
-        call bs%generate_PAM(...) ! to implement
+    if (opts%phangmom) then
+        call bs%generate_phangmom(uc, mw, verb) ! to implement
     end if
 
     ! Write a small summary
@@ -97,7 +97,7 @@ path: block
         write (lo_iou, *) '                number of bands: ', tochar(bs%n_mode)
         write (lo_iou, *) '                number of paths: ', tochar(bs%n_path)
         write (lo_iou, *) '  number of points on each path: ', tochar(bs%n_point_per_path)
-        write (lo_iou, *) '   ph. angular momentum setting: ', opts%PAM_path
+        write (lo_iou, *) '   ph. angular momentum setting: ', opts%phangmom
         write (lo_iou, *) ''
         do i = 1, bs%n_path
             write (lo_iou, *) '        path '//tochar(i)//': from '//trim(bs%symb_q_start(i))//' to '//trim(bs%symb_q_end(i))

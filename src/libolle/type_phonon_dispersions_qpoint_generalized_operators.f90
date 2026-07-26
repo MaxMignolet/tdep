@@ -288,7 +288,7 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
                 enddo
                 enddo
                 ! Figure out the mean eigenvalue
-                call lo_zheev(m1,v0,jobz='V') ! the matrix is not hermitian as far as I know, to replace with zgeev
+                call lo_zheev(m1,v0,jobz='V')
                 f0=sum(v0)/real(ompoint%degeneracy(b1),r8)
                 ! Rotate eigenvectors
                 do i=1,ompoint%degeneracy(b1)

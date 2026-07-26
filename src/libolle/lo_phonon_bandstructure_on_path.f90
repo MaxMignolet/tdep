@@ -426,6 +426,7 @@ contains
             if (allocated(bs%p(i)%omega)) bs%p(i)%omega = bs%p(i)%omega(iperm)
             if (allocated(bs%p(i)%vel)) bs%p(i)%vel = bs%p(i)%vel(:, iperm)
             if (allocated(bs%p(i)%egv)) bs%p(i)%egv = bs%p(i)%egv(:, iperm)
+            if (allocated(bs%p(i)%egv)) bs%p(i)%phangmom = bs%p(i)%phangmom(:, iperm)
             if (allocated(bs%p(i)%gruneisen)) bs%p(i)%gruneisen = bs%p(i)%gruneisen(iperm)
             if (allocated(bs%p(i)%linewidth)) bs%p(i)%linewidth = bs%p(i)%linewidth(iperm)
             if (allocated(bs%p(i)%shift3)) bs%p(i)%shift3 = bs%p(i)%shift3(iperm)
@@ -478,8 +479,16 @@ contains
         integer, intent(in) :: verbosity
 
         complex(r8), allocatable :: gen_pam(:,:,:)
+        real(r8) :: timer
         integer :: q,imode
-        ! type(lo_qpoint_bandstructure) :: qpoint
+
+        if (verbosity .gt. 0) then
+            write (lo_iou, *) ''
+            write (lo_iou, *) 'Calculating phonon angular momentum on a q-point path'
+        end if
+
+        ! Start timer
+        timer = walltime()
 
         allocate(gen_pam(3,bs%n_mode,bs%n_mode))
         do q = 1, bs%n_point
@@ -488,9 +497,6 @@ contains
 
         do q = 1, bs%n_point
             if (mod(q, mw%n) .ne. mw%r) cycle
-            ! qpoint = bs%q(q)
-            ! the actual dispersions
-            ! call bs%p(q)%return_generalized_angmom(p,qpoint,gen_pam)
             call bs%p(q)%return_generalized_angmom(p,bs%q(q),gen_pam)
             do imode = 1, bs%n_mode
                 bs%p(q)%phangmom(:,imode) = real(gen_pam(:,imode,imode))
@@ -499,6 +505,8 @@ contains
 
         ! all gather stuff
         ! nothing I believe?
+        if (verbosity .gt. 0) write (lo_iou, *) 'Array size: ', shape(bs%p(1)%phangmom)
+        if (verbosity .gt. 0) write (lo_iou, *) 'Calculated phangmom on path in ', tochar(walltime() - timer), 's'
     end subroutine
 
 !> dump a dispersion plot
@@ -775,6 +783,8 @@ contains
         real(r8), dimension(:), allocatable :: dum
         real(r8) :: unitfactor
         integer :: i, j, k, u
+        integer :: pam_dir ! cart. direction for phangmom
+        character :: pam_dir_str
 
         ! Get the unit conversion factor
         select case (enhet)
@@ -831,6 +841,20 @@ contains
         case ('threephononphasespace')
             ! write the phonon dispersions
             ylabel = 'Three-phonon phase space'
+        case ('phangmom')
+            ! phonon group velocities
+            unitstr = 'hbar'
+            unitfactor = 1.0_r8
+            pam_dir_str = filename(len_trim(filename) : len_trim(filename))
+            ylabel = 'Ph. ang. mom. '//pam_dir_str//' ('//trim(unitstr)//')'
+            select case (pam_dir_str)
+            case ('x')
+                pam_dir = 1
+            case ('y')
+                pam_dir = 2
+            case ('z')
+                pam_dir = 3
+            end select
         end select
 
         ! Get the filename
@@ -872,6 +896,8 @@ contains
                 write (u, opf) bs%q_axis(i), bs%p(i)%omega(1:3)*unitfactor, bs%p(i)%omega_elastic*unitfactor
             case ('threephononphasespace')
                 write (u, opf) bs%q_axis(i), bs%p(i)%threephononphasespace
+            case ('phangmom')
+                write (u, opf) bs%q_axis(i), bs%p(i)%phangmom(pam_dir,:)*unitfactor
             end select
         end do
         close (u)
