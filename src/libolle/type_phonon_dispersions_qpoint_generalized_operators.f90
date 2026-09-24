@@ -345,12 +345,8 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
                 enddo
                 enddo
             enddo
-            Lalpha(ialpha,:,:)=m2/real(qpoint%n_invariant_operation,r8)
-            ! Not sure how to store .. m2 should be purely imaginary at this point. Possibly.
-            ! The diagonal should be purely imaginary, not sure about the rest.
-
+            m2=m2/real(qpoint%n_invariant_operation,r8)
             deallocate(m1)
-            deallocate(m2)
         else ! do not use q little group to symmetrize
             allocate(m2(nb,nb))
             m2=0.0_r8
@@ -371,9 +367,29 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
                 enddo
             enddo
             enddo
-            Lalpha(ialpha,:,:)=m2
-            deallocate(m2)
         end if
+
+        ! Make sure the degeneracies hold
+        do b1=1,nb
+            if ( ompoint%degeneracy(b1) .eq. 1 ) cycle
+            do i=1,ompoint%degeneracy(b1)
+                b2=ompoint%degenmode(i,b1)
+                if ( b1 .eq. b2 ) then
+                    m2(b1,b1)=v1(b1)
+                    ! this condition was ok for symmetry protected degeneracies,
+                    ! but for accidental degeneracies the net pam does not need to be zero...
+                    ! if (abs(v1(b1)) > lo_tol) then
+                    !     WRITE(*,*) "Something went terribly wrong :'("
+                    !     call lo_stop_gracefully(['Something went terribly wrong :('], -1, __FILE__, __LINE__)
+                    ! endif
+                else
+                    m2(b1,b2)=0.0_r8
+                endif
+            enddo
+        enddo
+
+        Lalpha(ialpha,:,:)=m2
+        deallocate(m2)
     enddo
 
     deallocate(Dq)
