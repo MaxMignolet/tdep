@@ -13,7 +13,7 @@ use gottochblandat, only: open_file, walltime, tochar, lo_trueNtimes, lo_classic
                           lo_classical_harmonic_oscillator_entropy, lo_planck, lo_sqnorm, lo_progressbar_init, &
                           lo_progressbar, qsort, lo_outerproduct, lo_outer_outerproduct, lo_chop, lo_symmetric_eigensystem_3x3matrix, &
                           lo_flattentensor, lo_unflatten_2tensor, lo_linear_least_squares, lo_nullspace_coefficient_matrix, &
-                          lo_identitymatrix, lo_real_pseudoinverse, lo_determ
+                          lo_identitymatrix, lo_real_pseudoinverse, lo_determ, lo_gen_phonon_cv
 
 use mpi_wrappers, only: lo_mpi_helper, lo_stop_gracefully
 use lo_memtracker, only: lo_mem_helper
@@ -1027,9 +1027,9 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
         complex(r8), dimension(3, 3, 3) :: kappa_contrib
         real(r8), dimension(3, 3) :: kappa_th_contrib
         real(r8), dimension(3, 3) :: torque_contrib
-        real(r8) :: om_s1,cv_s1,dndT_s1,lw_s1
-        real(r8) :: om_s2,cv_s2,dndT_s2,lw_s2
-        real(r8) :: lw_s1s2
+        real(r8) :: om_s1,n_s1,cv_s1,dndT_s1,lw_s1
+        real(r8) :: om_s2,n_s2,cv_s2,dndT_s2,lw_s2
+        real(r8) :: cv_s1s2,lw_s1s2,imag_lw_s1s2
         real(r8) :: weight_q
         integer :: i,k,l,nat3
         integer :: s1,s2,s3
@@ -1063,12 +1063,16 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
                 ! instead of computing everything over and over
                 ! but I'm not convinced the speedup will be significantly useful
                 om_s1 = dr%aq(i)%omega(s1)
+                n_s1  = lo_planck(temperature, om_s1)
                 cv_s1 = lo_harmonic_oscillator_cv(temperature, om_s1)
                 dndT_s1 = cv_s1/om_s1
 
                 om_s2 = dr%aq(i)%omega(s2)
+                n_s2  = lo_planck(temperature, om_s2)
                 cv_s2 = lo_harmonic_oscillator_cv(temperature, om_s2)
                 dndT_s2 = cv_s2/om_s2
+
+                cv_s1s2 = lo_gen_phonon_cv(temperature, om_s1, om_s2)
 
                 weight_q = qp%ap(i)%integration_weight
 
@@ -1085,6 +1089,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
                 end if
 
                 lw_s1s2 = (lw_s1 + lw_s2) / ((om_s1 - om_s2)**2 + (lw_s1 + lw_s2)**2) ! gen. linewidth
+                imag_lw_s1s2 = (om_s1 - om_s2) / ((om_s1 - om_s2)**2 + (lw_s1 + lw_s2)**2) ! imaginary part of the resonant gen. linewidth
 
                 ! lo_outerproduct: c(i,j) = conjg(a(j)) * b(i) -> I need to counter that...
                 ! lo_outer_outerproduct: d(i,j,k) = a(i) * b(j) * c(k) -> this is fine
@@ -1111,8 +1116,8 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
                 ! PAM transport matrix
                 kappa_contrib = 0.0_r8
                 do s3 = 1, dr%n_mode
-                    kappa_contrib = kappa_contrib + real(lo_outer_outerproduct(angmom(:,s1,s3), vel(:,s3,s2), vel(:,s2,s1)) * (dndT_s1+dndT_s2)/2 * lw_s1s2)
-                    ! not sure I have the right to take the real part here...
+                    if ( dr%aq(i)%omega(s3) .lt. lo_freqtol .or. s1 == s2 ) cycle
+                    kappa_contrib = kappa_contrib + real(-lo_imag * lo_outer_outerproduct(angmom(:,s1,s3), vel(:,s3,s2), vel(:,s2,s1)) * cv_s1s2 / ((om_s1+om_s2)/2) * imag_lw_s1s2)
                 end do
 
                 ! accumulating things

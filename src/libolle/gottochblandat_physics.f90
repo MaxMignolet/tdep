@@ -387,6 +387,32 @@ module elemental function lo_harmonic_oscillator_cv(temp,omega) result(cv)
     endif
 end function
 
+!> Discrete generalized phonon heat capacity (Cv) in Ha/K
+module elemental function lo_gen_phonon_cv(temp,om_1,om_2) result(cv_12)
+    !> Temperature in K
+    real(flyt), intent(in) :: temp
+    !> Angular frequencies in Hartree, omega_1, omega_2
+    real(flyt), intent(in) :: om_1,om_2
+    !> The heat capacity in Hartree/K
+    real(flyt) :: cv_12
+
+    real(flyt) :: n_1,n_2, dndom ! dndom = dn/d omega
+
+    ! brute computing for now, more delicate computing for later (for low/high temp,...)
+    n_1 = lo_planck(temp, om_1)
+    n_2 = lo_planck(temp, om_2)
+
+    if ( abs(om_1-om_2) > lo_tol ) then
+      dndom = (n_1 - n_2)/(om_1 - om_2)
+    else
+      ! lim_(w_2->w_1) (n_1 - n_2)/(om_1 - om_2) = dn/dw = n(n+1) hbar / (k_B T)
+      dndom = n_1 * (n_1 + 1) / (lo_kb_Hartree * temp)
+    endif
+
+    ! - hbar/T (w_1 + w_2)^2/4 (n_1 - n_2)/(w_1 - w_2)
+    cv_12 = - 1.0_flyt/temp * (om_1 + om_2)**2/4 * dndom
+end function
+
 !> Untangle the bands the best I can for a single tetrahedron.
 module subroutine lo_untangle_one_tetrahedron(corner,energy,groupvelocity,degentol,permutation,success,error_interp_energy,error_interp_gradient)
     !> corners of tetrahedron

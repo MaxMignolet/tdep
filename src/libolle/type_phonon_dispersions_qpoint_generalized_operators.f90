@@ -27,130 +27,30 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
     type(lo_mem_helper), intent(inout) :: mem
 
     complex(r8), dimension(:,:,:), allocatable :: Dq
-    complex(r8), dimension(:,:), allocatable :: m0,m1,m2,m3,rotmat
-    real(r8), dimension(:), allocatable :: v0,v1
-    complex(r8), dimension(3) :: w0,w1
-    real(r8) :: f0
-    logical, dimension(:), allocatable :: modefixed
-    integer :: i,j,ii,jj,ialpha,b1,b2,nb,iop
+    complex(r8), dimension(:,:), allocatable :: m0,m2
+    integer :: ialpha,b1,b2,nb
     logical, parameter :: use_syms = .false.
 
     nb=p%na*3
 
     allocate(m0(nb,nb))
+    allocate(m2(nb,nb))
     allocate(Dq(nb,nb,3))
-    allocate(rotmat(nb,nb))
     m0=0.0_r8 ! dynamical matrix
     Dq=0.0_r8 ! q-gradient of the dynamical matrix
     call fc%dynamicalmatrix(p, qpoint, m0, mem, Dq, qdirection=[1.0_r8, 0.0_r8, 0.0_r8])
     ! qdirection only relevant when at Gamma for non-analycities
+    m0(:,:) = ompoint%egv(:,:)
 
-    allocate(modefixed(nb))
-    allocate(v1(nb))
-    v1=0.0_r8
-    modefixed=.false.
     do ialpha=1,3
-        ! Find the properly rotated eigenvectors
-        modefixed=.false.
-        v1=0.0_r8
-        m0=0.0_r8
-        do b1=1,nb
-            if ( modefixed(b1) ) cycle
-
-            if ( ompoint%omega(b1) .lt. lo_freqtol ) then
-                ! Don't care for acoustic modes
-                m0(:,b1)=0.0_r8
-                modefixed(b1)=.true.
-            elseif ( ompoint%degeneracy(b1) .eq. 1 ) then
-                ! Not degenerate, nothing to worry about
-                m0(:,b1)=ompoint%egv(:,b1)
-                modefixed(b1)=.true.
-            else
-                allocate(m1(ompoint%degeneracy(b1),ompoint%degeneracy(b1)))
-                allocate(m2(nb,ompoint%degeneracy(b1)))
-                allocate(m3(nb,ompoint%degeneracy(b1)))
-                allocate(v0(ompoint%degeneracy(b1)))
-                m1=0.0_r8
-                m2=0.0_r8
-                m3=0.0_r8
-                v0=0.0_r8
-
-                do i=1,ompoint%degeneracy(b1)
-                do j=1,ompoint%degeneracy(b1)
-                    ii=ompoint%degenmode(i,b1)
-                    jj=ompoint%degenmode(j,b1)
-                    m1(i,j)=dot_product(ompoint%egv(:,ii),matmul(Dq(:,:,ialpha),ompoint%egv(:,jj)))
-                enddo
-                enddo
-                ! Figure out the mean eigenvalue
-                call lo_zheev(m1,v0,jobz='V')
-                f0=sum(v0)/real(ompoint%degeneracy(b1),r8)
-                ! Rotate eigenvectors
-                do i=1,ompoint%degeneracy(b1)
-                    ii=ompoint%degenmode(i,b1)
-                    m2(:,i)=ompoint%egv(:,ii)
-                enddo
-                m3=matmul(m2,m1)
-                ! Store correctly rotated eigenvectors
-                do i=1,ompoint%degeneracy(b1)
-                    b2=ompoint%degenmode(i,b1)
-                    m0(:,b2)=m3(:,i)
-                    v1(b2)=f0
-                    modefixed(b2)=.true.
-                enddo
-
-                deallocate(m1)
-                deallocate(m2)
-                deallocate(m3)
-                deallocate(v0)
-            endif
-        enddo
-        ! At this point m0 should hold the appropriately rotated eigenvectors.
-        ! And v1 holds the corresponding eigenvalues
-        ! We could possibly do even better if we also average over the small
-        ! group of q.
-
-        allocate(m1(nb,nb))
-        allocate(m2(nb,nb))
-        m1=0.0_r8
         m2=0.0_r8
-        if (use_syms) then ! symmetrization with little group
-            do i=1,qpoint%n_invariant_operation
-                iop=qpoint%invariant_operation(i)
-                call lo_eigenvector_transformation_matrix(rotmat,p%rcart,qpoint%r,p%sym%op(iop))
-                m1 = matmul(rotmat,m0)
-                ! if iop<0 conjugate the eigvec
-                if (iop < 0) m1 = conjg(m1)
-
-                do b1=1,nb
-                do b2=1,nb
-                    m2(b1,b2)=m2(b1,b2)+dot_product(m1(:,b1),matmul(Dq(:,:,ialpha),m1(:,b2)))
-                enddo
-                enddo
-            enddo
-            ! m2 holds the component ialpha of the generalized velocity
-            m2=m2/real(qpoint%n_invariant_operation,r8)
-        else
-            do b1=1,nb
-            do b2=1,nb
-                m2(b1,b2)=m2(b1,b2)+dot_product(m0(:,b1),matmul(Dq(:,:,ialpha),m0(:,b2)))
-            enddo
-            enddo
-            ! m2 holds the component ialpha of the generalized velocity
-        end if
-
-        ! Make sure the degeneracies hold
         do b1=1,nb
-            if ( ompoint%degeneracy(b1) .eq. 1 ) cycle
-            do i=1,ompoint%degeneracy(b1)
-                b2=ompoint%degenmode(i,b1)
-                if ( b1 .eq. b2 ) then
-                    m2(b1,b1)=v1(b1)
-                else
-                    m2(b1,b2)=0.0_r8
-                endif
-            enddo
+        do b2=1,nb
+            m2(b1,b2)=m2(b1,b2)+dot_product(m0(:,b1),matmul(Dq(:,:,ialpha),m0(:,b2)))
         enddo
+        enddo
+        ! m2 holds the component ialpha of the sandwiched gradient of the dyn mat
+
         ! Store as generalized group velocity
         do b1=1,nb
         do b2=1,nb
@@ -160,35 +60,12 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
         enddo
         enddo
 
-        deallocate(m1)
-        deallocate(m2)
     enddo
 
+    deallocate(m2)
     deallocate(m0)
     deallocate(Dq)
-    deallocate(modefixed)
-    deallocate(v1)
 
-    ! Maybe a final average over the small group? Yes no maybe. Seems reasonable.
-    if (use_syms) then
-    do b1=1,nb
-    do b2=1,nb
-        if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
-        if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
-        w0=genvel(:,b1,b2)
-        w1=0.0_r8
-        do i=1,qpoint%n_invariant_operation
-            iop=qpoint%invariant_operation(i)
-            if ( iop .gt. 0 ) then
-                w1=w1+matmul(p%sym%op(iop)%m,w0)
-            else
-                w1=w1-matmul(p%sym%op(iop)%m,w0)
-            endif
-        enddo
-        genvel(:,b1,b2)=w1/real(qpoint%n_invariant_operation)
-    enddo
-    enddo
-    end if
 end subroutine
 
 !> returns the \mathbb{L}_{\alpha} thingy I defined
@@ -204,14 +81,9 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
 
 
     integer, dimension(3,3,3) :: lcv
-    complex(r8), dimension(:,:,:), allocatable :: Dq
-    complex(r8), dimension(:,:), allocatable :: m0,m1,m2,m3,rotmat
-    real(r8), dimension(:), allocatable :: v0,v1
+    complex(r8), dimension(:,:), allocatable :: m2
     complex(r8), dimension(3) :: cw0,cw1
-    real(r8), dimension(3) :: w0,w1
-    real(r8) :: f0
-    logical, dimension(:), allocatable :: modefixed
-    integer :: i,j,ii,jj,ialpha,ibeta,igamma,b1,b2,nb,iop
+    integer :: j,ialpha,ibeta,igamma,b1,b2,nb
     logical, parameter :: use_syms = .false.
 
 
@@ -224,220 +96,33 @@ subroutine return_generalized_angmom(ompoint,p,qpoint,Lalpha)
     lcv(2,1,3)=-1
     lcv(3,2,1)=-1
 
-    ! Hmm. For the group velocities I could sandwich the gradient of the dynamical
-    ! matrix between eigenvectors to find the correct rotation. I wonder what the
-    ! equivalent matrix should be for the angular momentum stuff? I think it's just
-    ! the generator thingy:
-    !
-    ! Dq_{i\alpha,j\beta,\gamma) = \delta_{ij} \eps_{\alpha\beta\gamma}
-    !
-    ! At least 60% sure. Better than nothing.
     nb=p%na*3
-    allocate(Dq(nb,nb,3))
-    Dq=0.0_r8
-    do i=1,p%na
-        do ialpha=1,3
-        do ibeta=1,3
-        do igamma=1,3
-            ii=(i-1)*3+ialpha
-            jj=(i-1)*3+ibeta
-            Dq(ii,jj,igamma)=-lo_imag*lcv(ialpha,ibeta,igamma)
-        enddo
-        enddo
-        enddo
-    enddo
 
-    allocate(m0(nb,nb))
-    allocate(rotmat(nb,nb))
-    allocate(modefixed(nb))
-    allocate(v1(nb))
-    m0=0.0_r8
-    v1=0.0_r8
-    modefixed=.false.
+    allocate(m2(nb,nb))
     do ialpha=1,3
-        ! Find the properly rotated eigenvectors
-        modefixed=.false.
-        v1=0.0_r8
-        m0=0.0_r8
+        m2=0.0_r8
         do b1=1,nb
-            if ( modefixed(b1) ) cycle
+        do b2=1,nb
+            if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
+            if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
 
-            if ( ompoint%omega(b1) .lt. lo_freqtol ) then
-                ! Don't care for acoustic modes
-                m0(:,b1)=0.0_r8
-                modefixed(b1)=.true.
-            elseif ( ompoint%degeneracy(b1) .eq. 1 ) then
-                ! Not degenerate, nothing to worry about
-                m0(:,b1)=ompoint%egv(:,b1)
-                modefixed(b1)=.true.
-            else
-                allocate(m1(ompoint%degeneracy(b1),ompoint%degeneracy(b1)))
-                allocate(m2(nb,ompoint%degeneracy(b1)))
-                allocate(m3(nb,ompoint%degeneracy(b1)))
-                allocate(v0(ompoint%degeneracy(b1)))
-                m1=0.0_r8
-                m2=0.0_r8
-                m3=0.0_r8
-                v0=0.0_r8
-
-                do i=1,ompoint%degeneracy(b1)
-                do j=1,ompoint%degeneracy(b1)
-                    ii=ompoint%degenmode(i,b1)
-                    jj=ompoint%degenmode(j,b1)
-                    m1(i,j)=dot_product(ompoint%egv(:,ii),matmul(Dq(:,:,ialpha),ompoint%egv(:,jj)))
+            do j=1,p%na
+                cw0=conjg(ompoint%egv( (j-1)*3+1:j*3,b1 ))
+                cw1=      ompoint%egv( (j-1)*3+1:j*3,b2 )
+                do ibeta=1,3
+                do igamma=1,3
+                    m2(b1,b2)=m2(b1,b2) - lo_imag * lcv(ialpha,ibeta,igamma)*cw0(ibeta)*cw1(igamma)
                 enddo
                 enddo
-                ! Figure out the mean eigenvalue
-                call lo_zheev(m1,v0,jobz='V')
-                f0=sum(v0)/real(ompoint%degeneracy(b1),r8)
-                ! Rotate eigenvectors
-                do i=1,ompoint%degeneracy(b1)
-                    ii=ompoint%degenmode(i,b1)
-                    m2(:,i)=ompoint%egv(:,ii)
-                enddo
-                m3=matmul(m2,m1)
-                ! Store correctly rotated eigenvectors
-                do i=1,ompoint%degeneracy(b1)
-                    b2=ompoint%degenmode(i,b1)
-                    m0(:,b2)=m3(:,i)
-                    v1(b2)=f0
-                    modefixed(b2)=.true.
-                enddo
-
-                deallocate(m1)
-                deallocate(m2)
-                deallocate(m3)
-                deallocate(v0)
-            endif
+            enddo
         enddo
-
-        ! At this point m0 should hold the appropriately rotated eigenvectors.
-        ! I'm like 50% sure at least. Better than nothing at least.
-        ! In addition to that we can average over the small group,
-        ! because I'm a grown up and I do whatever I want.
-
-        if (use_syms) then ! use q little group to symmetrize
-            ! Maybe we should 'un-rotate' the angular momentum before summing
-            allocate(m1(nb,nb))
-            allocate(m2(nb,nb))
-            m1=0.0_r8
-            m2=0.0_r8
-            do i=1,qpoint%n_invariant_operation
-                iop=qpoint%invariant_operation(i)
-                call lo_eigenvector_transformation_matrix(rotmat,p%rcart,qpoint%r,p%sym%op(iop))
-                m1 = matmul(rotmat,m0)
-
-                do b1=1,nb
-                do b2=1,nb
-                    if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
-                    if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
-
-                    do j=1,p%na
-                        cw0=conjg(m1( (j-1)*3+1:j*3,b1 ))
-                        cw1=      m1( (j-1)*3+1:j*3,b2 )
-                        do ibeta=1,3
-                        do igamma=1,3
-                            ! MMig: wouldn't using the Dq matrix be easier?
-                            m2(b1,b2)=m2(b1,b2) - lo_imag * lcv(ialpha,ibeta,igamma)*cw0(ibeta)*cw1(igamma)
-                        enddo
-                        enddo
-                    enddo
-                enddo
-                enddo
-            enddo
-            m2=m2/real(qpoint%n_invariant_operation,r8)
-            deallocate(m1)
-        else ! do not use q little group to symmetrize
-            allocate(m2(nb,nb))
-            m2=0.0_r8
-            do b1=1,nb
-            do b2=1,nb
-                if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
-                if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
-
-                do j=1,p%na
-                    cw0=conjg(m0( (j-1)*3+1:j*3,b1 ))
-                    cw1=      m0( (j-1)*3+1:j*3,b2 )
-                    do ibeta=1,3
-                    do igamma=1,3
-                        ! MMig: there is a missing hbar factor here, maybe not important
-                        m2(b1,b2)=m2(b1,b2) - lo_imag * lcv(ialpha,ibeta,igamma)*cw0(ibeta)*cw1(igamma)
-                    enddo
-                    enddo
-                enddo
-            enddo
-            enddo
-        end if
-
-        ! Make sure the degeneracies hold
-        do b1=1,nb
-            if ( ompoint%degeneracy(b1) .eq. 1 ) cycle
-            do i=1,ompoint%degeneracy(b1)
-                b2=ompoint%degenmode(i,b1)
-                if ( b1 .eq. b2 ) then
-                    m2(b1,b1)=v1(b1)
-                    ! this condition was ok for symmetry protected degeneracies,
-                    ! but for accidental degeneracies the net pam does not need to be zero...
-                    ! if (abs(v1(b1)) > lo_tol) then
-                    !     WRITE(*,*) "Something went terribly wrong :'("
-                    !     call lo_stop_gracefully(['Something went terribly wrong :('], -1, __FILE__, __LINE__)
-                    ! endif
-                else
-                    m2(b1,b2)=0.0_r8
-                endif
-            enddo
         enddo
 
         Lalpha(ialpha,:,:)=m2
-        deallocate(m2)
     enddo
 
-    deallocate(Dq)
-    deallocate(m0)
-    deallocate(rotmat)
-    deallocate(modefixed)
-    deallocate(v1)
+    deallocate(m2)
 
-    ! Maybe a final average over the small group? Yes no maybe. Seems reasonable.
-    ! from tests, it seems ok, didn't test thoroughly though
-    ! ! test
-    ! do b1=1,nb
-    ! do b2=1,nb
-    !     WRITE(77,'(3(es16.4,1x))') Lalpha(:,b1,b2)
-    ! end do
-    ! end do
-
-    if (use_syms) then
-    do b1=1,nb
-    do b2=1,nb
-        if ( ompoint%omega(b1) .lt. lo_freqtol ) cycle
-        if ( ompoint%omega(b2) .lt. lo_freqtol ) cycle
-        cw0=Lalpha(:,b1,b2)
-        cw1=0.0_r8
-        do i=1,qpoint%n_invariant_operation
-            iop=qpoint%invariant_operation(i)
-            if ( iop .gt. 0 ) then
-                ! pseudovector so det(op) in front.
-                f0=lo_determ(p%sym%op(iop)%m)
-                cw1=cw1+f0*matmul(p%sym%op(iop)%m,cw0)
-            else
-                WRITE(*,*) "Hoi, this is experimental."
-                ! this means time reversal
-                f0=lo_determ(p%sym%op(iop)%m)
-                cw1=cw1-f0*matmul(p%sym%op(iop)%m,cw0)
-            endif
-        enddo
-        Lalpha(:,b1,b2)=cw1/real(qpoint%n_invariant_operation)
-    enddo
-    enddo
-    end if
-
-    ! test
-    ! do b1=1,nb
-    ! do b2=1,nb
-    !     WRITE(78,'(3(es16.4,1x))') Lalpha(:,b1,b2)
-    ! end do
-    ! end do
 end subroutine
 
 end submodule
