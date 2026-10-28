@@ -1116,7 +1116,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
                 ! PAM transport matrix
                 kappa_contrib = 0.0_r8
                 do s3 = 1, dr%n_mode
-                    if ( dr%aq(i)%omega(s3) .lt. lo_freqtol .or. s1 == s2 ) cycle
+                    if ( dr%aq(i)%omega(s3) .lt. lo_freqtol ) cycle
                     kappa_contrib = kappa_contrib + real(-lo_imag * lo_outer_outerproduct(angmom(:,s1,s3), vel(:,s3,s2), vel(:,s2,s1)) * cv_s1s2 / ((om_s1+om_s2)/2) * imag_lw_s1s2)
                 end do
 
