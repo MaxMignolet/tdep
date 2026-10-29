@@ -1091,26 +1091,26 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
                 lw_s1s2 = (lw_s1 + lw_s2) / ((om_s1 - om_s2)**2 + (lw_s1 + lw_s2)**2) ! gen. linewidth
                 imag_lw_s1s2 = (om_s1 - om_s2) / ((om_s1 - om_s2)**2 + (lw_s1 + lw_s2)**2) ! imaginary part of the resonant gen. linewidth
 
-                ! lo_outerproduct: c(i,j) = conjg(a(j)) * b(i) -> I need to counter that...
+                ! lo_outerproduct: c(i,j) = conjg(a(j)) * b(i) -> I need to counter that... -> it's simply a transpose afterwards..
                 ! lo_outer_outerproduct: d(i,j,k) = a(i) * b(j) * c(k) -> this is fine
 
                 ! Heat conductivity matrix
-                kappa_th_contrib = real(lo_outerproduct(vel(:,s1,s2),vel(:,s1,s2))) * (cv_s1+cv_s2)/2 * lw_s1s2
+                kappa_th_contrib = real(mm_outerproduct(vel(:,s1,s2),vel(:,s2,s1))) * (cv_s1+cv_s2)/2 * lw_s1s2
 
                 ! PAM generation matrix
                 ! l_s1s2(i) * v_s2s1(j) = lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2))
                 ! since conjg(v_s1s2) = v_s2s1
-                g_contrib = real(lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2))) * (cv_s1+cv_s2)/(2*sqrt(om_s1*om_s2)) * lw_s1s2 ! I removed a factor 1/2 w.r.t. my notes (I suspect it to be wrong)
+                g_contrib = real(mm_outerproduct(vel(:,s1,s2),angmom(:,s2,s1))) * (cv_s1+cv_s2)/(2*sqrt(om_s1*om_s2)) * lw_s1s2 ! I removed a factor 1/2 w.r.t. my notes (I suspect it to be wrong)
 
                 ! PAM torque matrix
                 ! torque_contrib = aimag(lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2))) * (om_s1 - om_s2)/(2*sqrt(om_s1*om_s2)) * (dndT_s1+dndT_s2)/2 * lw_s1s2
-                torque_contrib = aimag(lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2))) * (om_s1 - om_s2)/(2*sqrt(om_s1*om_s2)) * (dndT_s1+dndT_s2)/2 * lw_s1s2
+                torque_contrib = aimag(mm_outerproduct(vel(:,s1,s2),angmom(:,s2,s1))) * (om_s1 - om_s2)/(2*sqrt(om_s1*om_s2)) * (dndT_s1+dndT_s2)/2 * lw_s1s2
 
                 ! PAM cRTA torque matrix (see Zhang25, Measurement of phonon angular momentum, https://doi.org/10.1038/s41567-025-02952-3)
                 ! I guess this one should only be computed over the mode-diagonal... (I have no idea)
                 torque_cRTA_contrib = 0.0_r8
                 if (s1 == s2) then
-                    torque_cRTA_contrib = real(lo_outerproduct(vel(:,s1,s1),angmom(:,s1,s1)) * dndT_s1)
+                    torque_cRTA_contrib = real(mm_outerproduct(vel(:,s1,s1),angmom(:,s1,s1)) * dndT_s1)
                 end if
 
                 ! PAM transport matrix
@@ -1175,6 +1175,27 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
         write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "y--", kappa(2,:,:)
         write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "z--", kappa(3,:,:)
     endif
+
+    contains
+
+    !> double outer product between 3 real vectors of length 3
+    !> be cautious about the convention, here it is c(i,j) = a(i) * b(j)
+    module pure function mm_outerproduct(a,b) result(c)
+        !> first vector
+        complex(r8), dimension(3), intent(in) :: a
+        !> second vector
+        complex(r8), dimension(3), intent(in) :: b
+        !> cross product
+        complex(r8), dimension(3,3) :: c
+        !> some indices
+        integer :: i,j
+
+        do j=1,3
+            do i=1,3
+                c(i,j) = a(i)*b(j)
+            end do
+        end do
+    end function
 end subroutine
 
 !> Calculate the thermal displacement covariance matrix

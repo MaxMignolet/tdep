@@ -42,6 +42,7 @@ subroutine return_generalized_group_velocity(ompoint,p,fc,qpoint,genvel,mem)
     ! qdirection only relevant when at Gamma for non-analycities
     m0(:,:) = ompoint%egv(:,:)
 
+    genvel(:,:,:) = 0.0_r8 ! zero initialisation otherwise acoustic modes are not set
     do ialpha=1,3
         m2=0.0_r8
         do b1=1,nb
