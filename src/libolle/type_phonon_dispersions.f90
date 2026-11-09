@@ -1088,7 +1088,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
                     lw_s2 = lw_s1
                 end if
 
-                lw_s1s2 = (lw_s1 + lw_s2) / ((om_s1 - om_s2)**2 + (lw_s1 + lw_s2)**2) ! gen. linewidth
+                lw_s1s2      = (lw_s1 + lw_s2) / ((om_s1 - om_s2)**2 + (lw_s1 + lw_s2)**2) ! gen. linewidth
                 imag_lw_s1s2 = (om_s1 - om_s2) / ((om_s1 - om_s2)**2 + (lw_s1 + lw_s2)**2) ! imaginary part of the resonant gen. linewidth
 
                 ! lo_outerproduct: c(i,j) = conjg(a(j)) * b(i) -> I need to counter that... -> it's simply a transpose afterwards..
@@ -1121,16 +1121,12 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
                 end do
 
                 ! accumulating things
-                kappa_th = kappa_th + kappa_th_contrib*weight_q
-                g = g + g_contrib*weight_q
-                torque = torque + torque_contrib*weight_q
-                kappa = kappa + real(kappa_contrib)*weight_q
-                torque_cRTA = torque_cRTA + torque_cRTA_contrib*weight_q
+                kappa_th    = kappa_th    + kappa_th_contrib    * weight_q
+                g           = g           + g_contrib           * weight_q
+                torque      = torque      + torque_contrib      * weight_q
+                kappa       = kappa       + real(kappa_contrib) * weight_q
+                torque_cRTA = torque_cRTA + torque_cRTA_contrib * weight_q
 
-                ! DEBUG
-                ! WRITE(66,'(3(f5.3,1x))') qp%ap(i)%r
-                ! WRITE(66,'(8x,3(3e16.7,1x),1x)') alpha(1,2), alpha(2,1), alpha_contrib(1,2), alpha_contrib(2,1)
-                ! WRITE(66,'(8x,3(3e16.7,1x),1x)') torque(1,2), torque(2,1), torque_contrib(1,2), torque_contrib(2,1)
             end do
             end do
         end do
