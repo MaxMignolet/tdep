@@ -23,7 +23,8 @@ use type_forceconstant_secondorder, only: lo_forceconstant_secondorder
 use type_forceconstant_thirdorder, only: lo_forceconstant_thirdorder
 use type_qpointmesh, only: lo_qpoint, lo_qpoint_mesh, lo_monkhorst_pack_mesh, lo_wedge_mesh, lo_fft_mesh, &
                            lo_get_small_group_of_qpoint
-use type_symmetryoperation, only: lo_eigenvector_transformation_matrix, lo_operate_on_vector, lo_expandoperation_pair
+use type_symmetryoperation, only: lo_eigenvector_transformation_matrix, lo_operate_on_vector, lo_expandoperation_pair, &
+                                  lo_symmetrize_secondorder_property_tensor, lo_symmetrize_thirdorder_property_tensor
 use hdf5_wrappers, only: lo_hdf5_helper
 
 implicit none
@@ -1027,6 +1028,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
         complex(r8), dimension(3, 3, 3) :: kappa_contrib
         real(r8), dimension(3, 3) :: kappa_th_contrib
         real(r8), dimension(3, 3) :: torque_contrib
+        complex(r8) :: tau_s1s2(3)
         real(r8) :: om_s1,n_s1,cv_s1,dndT_s1,lw_s1
         real(r8) :: om_s2,n_s2,cv_s2,dndT_s2,lw_s2
         real(r8) :: cv_s1s2,lw_s1s2,imag_lw_s1s2
@@ -1052,6 +1054,10 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
             call dr%aq(i)%return_generalized_group_velocity(uc,fc,qp%ap(i),vel,mem)
             call dr%aq(i)%return_generalized_angmom(uc,qp%ap(i),angmom)
 
+            ! WRITE(85,*) "i, qpoint: ", i, qp%ap(i)%r
+            ! WRITE(85,"(1x,3(3(e14.6,1x),1x))") vel(:,4,5)
+            ! WRITE(85,"(1x,3(3(e14.6,1x),1x))") vel(:,5,4)
+
             do s1 = 1, dr%n_mode
             do s2 = 1, dr%n_mode
                 ! Don't care for acoustic modes
@@ -1073,6 +1079,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
                 dndT_s2 = cv_s2/om_s2
 
                 cv_s1s2 = lo_gen_phonon_cv(temperature, om_s1, om_s2)
+                tau_s1s2(:) = lo_imag/2.0_r8 * (om_s1 - om_s2) * (sqrt(om_s1/om_s2) + sqrt(om_s2/om_s1)) * angmom(:,s1,s2)
 
                 weight_q = qp%ap(i)%integration_weight
 
@@ -1096,6 +1103,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
 
                 ! Heat conductivity matrix
                 kappa_th_contrib = real(mm_outerproduct(vel(:,s1,s2),vel(:,s2,s1))) * (cv_s1+cv_s2)/2 * lw_s1s2
+                ! kappa_th_contrib = real(mm_outerproduct(vel(:,s1,s2),vel(:,s2,s1)))
 
                 ! PAM generation matrix
                 ! l_s1s2(i) * v_s2s1(j) = lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2))
@@ -1104,7 +1112,7 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
 
                 ! PAM torque matrix
                 ! torque_contrib = aimag(lo_outerproduct(vel(:,s1,s2),angmom(:,s1,s2))) * (om_s1 - om_s2)/(2*sqrt(om_s1*om_s2)) * (dndT_s1+dndT_s2)/2 * lw_s1s2
-                torque_contrib = aimag(mm_outerproduct(vel(:,s1,s2),angmom(:,s2,s1))) * (om_s1 - om_s2)/(2*sqrt(om_s1*om_s2)) * (dndT_s1+dndT_s2)/2 * lw_s1s2
+                torque_contrib = cv_s1s2 / ((om_s1 + om_s2)/2) * real(lo_imag* mm_outerproduct(tau_s1s2(:),vel(:,s2,s1))) * imag_lw_s1s2
 
                 ! PAM cRTA torque matrix (see Zhang25, Measurement of phonon angular momentum, https://doi.org/10.1038/s41567-025-02952-3)
                 ! I guess this one should only be computed over the mode-diagonal... (I have no idea)
@@ -1133,19 +1141,33 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
         DEALLOCATE(vel)
         DEALLOCATE(angmom)
         ! wouldn't a simple mw%reduce() do the trick? I'll leave the allreduce for the moment...
-        call mw%allreduce('sum', kappa_th)
-        call mw%allreduce('sum', g)
-        call mw%allreduce('sum', torque)
+        call mw%allreduce('sum', kappa_th   )
+        call mw%allreduce('sum', g          )
+        call mw%allreduce('sum', torque     )
         call mw%allreduce('sum', torque_cRTA)
-        call mw%allreduce('sum', kappa)
+        call mw%allreduce('sum', kappa      )
         ! And finally scale with volume
-        kappa_th = kappa_th/uc%volume
-        g = g/uc%volume
-        torque = torque/uc%volume
-        kappa = kappa/uc%volume
-        torque_cRTA = torque_cRTA/uc%volume
+        kappa_th    = kappa_th    / uc%volume
+        g           = g           / uc%volume
+        torque      = torque      / uc%volume
+        kappa       = kappa       / uc%volume
+        torque_cRTA = torque_cRTA / uc%volume
         ! f0 = norm2(alpha)
         ! alpha = lo_chop(alpha, f0*1E-10_r8)
+
+        ! some optional symmetrization
+        ! call lo_symmetrize_secondorder_property_tensor(uc%sym, kappa_th   )
+        ! call lo_symmetrize_secondorder_property_tensor(uc%sym, g          )
+        ! call lo_symmetrize_secondorder_property_tensor(uc%sym, torque     )
+        ! call lo_symmetrize_secondorder_property_tensor(uc%sym, torque_cRTA)
+        ! if (mw%talk) then
+        !     write(*,*) 'Angular momentum transport matrix pre-symm: (units: TODO)'
+        !     write(*, "(5x,3(3(a14,1x),1x))") "-xx", "-yx", "-zx", "-xy", "-yy", "-zy", "-xz", "-yz", "-zz"
+        !     write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "x--", kappa(1,:,:)
+        !     write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "y--", kappa(2,:,:)
+        !     write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "z--", kappa(3,:,:)
+        ! end if
+        ! call lo_symmetrize_thirdorder_property_tensor (uc%sym, kappa      , axial=.True.)
     end block calc
 
     ! moved output from main.f90 to here
