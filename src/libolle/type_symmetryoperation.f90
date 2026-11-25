@@ -15,6 +15,9 @@ public :: lo_spacegroup_operation
 public :: lo_symset
 public :: lo_operate_on_vector
 public :: lo_operate_on_secondorder_tensor
+public :: lo_operate_on_thirdorder_tensor
+public :: lo_symmetrize_secondorder_property_tensor
+public :: lo_symmetrize_thirdorder_property_tensor
 public :: lo_eigenvector_transformation_matrix
 public :: lo_expandoperation_pair
 public :: lo_expandoperation_triplet
@@ -237,6 +240,78 @@ pure function lo_operate_on_secondorder_tensor(op,m) result(n)
     enddo
     enddo
 end function
+
+!> Apply operation to a 3x3x3 tensor
+pure function lo_operate_on_thirdorder_tensor(op,m,axial) result(n)
+    !> The operation
+    type(lo_spacegroup_operation), intent(in) :: op
+    !> The original tensor
+    real(r8), dimension(3,3,3), intent(in) :: m
+    !> The rotated tensor
+    real(r8), dimension(3,3,3) :: n
+    !> Whether the tensor is axial
+    logical, intent(in), optional :: axial
+
+    integer :: i,j,k,ii,jj,kk
+    n=0.0_r8
+    do k=1,3
+    do j=1,3
+    do i=1,3
+        do kk=1,3
+        do jj=1,3
+        do ii=1,3
+            n(i,j,k)=n(i,j,k)+m(ii,jj,kk)*op%m(i,ii)*op%m(j,jj)*op%m(k,kk)
+        enddo
+        enddo
+        enddo
+    enddo
+    enddo
+    enddo
+    if (present(axial) .and. axial .eqv. .True.) then
+        n = n * lo_determ(op%m)
+    endif
+end function
+
+!> Symmetrization of a second order property tensor by the operations of the point group
+subroutine lo_symmetrize_secondorder_property_tensor(symset,m)
+    !> Set of symmetries
+    type(lo_symset), intent(in) :: symset
+    !> Property tensor to be symmetrized
+    real(r8), dimension(3,3), intent(inout) :: m
+
+    integer :: i
+    real(r8), dimension(3,3) :: tmp
+
+    tmp = 0
+    do i=1,symset%n
+        tmp = tmp + lo_operate_on_secondorder_tensor(symset%op(i), m)
+    end do
+    m = tmp / symset%n
+
+end subroutine
+
+!> Symmetrization of a third order property tensor by the operations of the point group
+subroutine lo_symmetrize_thirdorder_property_tensor(symset,m,axial)
+    !> Set of symmetries
+    type(lo_symset), intent(in) :: symset
+    !> Property tensor to be symmetrized
+    real(r8), dimension(3,3,3), intent(inout) :: m
+    !> Whether the tensor is axial
+    logical, intent(in), optional :: axial
+
+    integer :: i
+    logical :: axial_ = .True.
+    real(r8), dimension(3,3,3) :: tmp
+
+    if (present(axial)) axial_ = axial
+
+    tmp = 0
+    do i=1,symset%n
+        tmp = tmp + lo_operate_on_thirdorder_tensor(symset%op(i), m, axial_)
+    end do
+    m = tmp / symset%n
+
+end subroutine
 
 !> Transformation matrix for phonon eigenvectors corresponding to a symmetry operation
 #ifdef AGRESSIVE_SANITY
