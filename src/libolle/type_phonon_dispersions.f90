@@ -1095,6 +1095,10 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
                     lw_s2 = lw_s1
                 end if
 
+                ! for some obscure reason, pasta from kappa.f90::get_kappa_offdiag::offdiag
+                if (lw_s1 .lt. lo_freqtol) cycle
+                if (lw_s2 .lt. lo_freqtol) cycle
+
                 lw_s1s2      = (lw_s1 + lw_s2) / ((om_s1 - om_s2)**2 + (lw_s1 + lw_s2)**2) ! gen. linewidth
                 imag_lw_s1s2 = (om_s1 - om_s2) / ((om_s1 - om_s2)**2 + (lw_s1 + lw_s2)**2) ! imaginary part of the resonant gen. linewidth
 
