@@ -979,7 +979,8 @@ end function
 
 !> calculate phonon angular momentum matrix
 subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
-                                          kappa, torque_cRTA, mw, mem)
+                                          kappa, torque_cRTA, mw, mem,\
+                                          verbose)
     !> dispersion relations
     class(lo_phonon_dispersions), intent(in) :: dr
     !> qpoint mesh
@@ -1001,11 +1002,15 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
     type(lo_mpi_helper), intent(inout) :: mw
     !> memory helper
     type(lo_mem_helper), intent(inout) :: mem
+    !> wether or not to talk
+    logical, optional, intent(in) :: verbose
 
     real(r8), parameter :: faketau = 10E-12_r8*lo_time_s_to_au ! lifetime of 10 ps
     logical :: havetau
+    logical :: verbose_
     real(r8), dimension(3, 3) :: kappa_th ! thermal conductivity for test/comparison
     real(r8), dimension(3, 3) :: torque ! PAM torque
+    integer :: u ! output unit
 
     ! Some initial things
     init: block
@@ -1017,6 +1022,11 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
             if (mw%talk) then
                 WRITE(*,*) "Computing angular momentum matrices with fake tau"
             end if
+        end if
+
+        verbose_ = .true.
+        if (present(verbose)) then
+            verbose_ = verbose
         end if
     end block init
 
@@ -1176,26 +1186,60 @@ subroutine phonon_angular_momentum_matrix(dr, qp, fc, uc, temperature, g,\
 
     ! moved output from main.f90 to here
     ! that way I don't have to modify interfaces all the time
-    if (mw%talk) then
+    if (mw%talk .and. verbose_ .eqv. .true.) then
+        ! Output to log
         write(*,*) 'Heat conductivity matrix: (units: W/m/K)'
         write(*, "(1x,3(3(f10.6,1x),1x))") kappa_th(:,:)*lo_kappa_au_to_SI
-        write(*,*) 'Angular momentum generation matrix: (units: hbar/bohr^⁻2/K)'
+        write(*,*) 'Angular momentum generation matrix: (units: hbar/bohr^2/K)'
         write(*, "(1x,3(3(f10.6,1x),1x))") g(:,:)
-        write(*,*) 'Angular momentum generation matrix: (units: Js/m^⁻2/K)'
-        write(*, "(1x,3(3(e14.6,1x),1x))") g(:,:) * lo_hbar_Joule / lo_bohr_to_m**2 ! / lo_time_au_to_s
-        write(*,*) 'Ang. mom. torque matrix: (units: hbar/fs/bohr^⁻2/K)'
+        write(*,*) 'Angular momentum generation matrix: (units: Js/m^2/K)'
+        write(*, "(1x,3(3(e14.6,1x),1x))") g(:,:) * lo_hbar_Joule / lo_bohr_to_m**2
+        write(*,*) 'Ang. mom. torque matrix: (units: hbar/fs/bohr^2/K)'
         write(*, "(1x,3(3(e14.8,1x),1x))") torque(:,:) / lo_time_au_to_fs
-        write(*,*) 'Ang. mom. torque matrix: (units: J/m^⁻2/K)'
-        write(*, "(1x,3(3(e14.6,1x),1x))") torque(:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2 ! / lo_time_au_to_s
-        write(*,*) 'Ang. mom. cRTA torque matrix: (units: hbar/fs/bohr^⁻2/K)'
+        write(*,*) 'Ang. mom. torque matrix: (units: J/m^2/K)'
+        write(*, "(1x,3(3(e14.6,1x),1x))") torque(:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2
+        write(*,*) 'Ang. mom. cRTA torque matrix: (units: hbar/fs/bohr^2/K)'
         write(*, "(1x,3(3(e14.8,1x),1x))") torque_cRTA(:,:) / lo_time_au_to_fs
-        write(*,*) 'Ang. mom. cRTA torque matrix: (units: J/m^⁻2/K)'
-        write(*, "(1x,3(3(e14.6,1x),1x))") torque_cRTA(:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2 ! / lo_time_au_to_s
-        write(*,*) 'Angular momentum transport matrix: (units: TODO)'
+        write(*,*) 'Ang. mom. cRTA torque matrix: (units: J/m^2/K)'
+        write(*, "(1x,3(3(e14.6,1x),1x))") torque_cRTA(:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2
+        write(*,*) 'Angular momentum transport matrix: (units: hbar/fs/bohr^1/K)'
         write(*, "(5x,3(3(a14,1x),1x))") "-xx", "-yx", "-zx", "-xy", "-yy", "-zy", "-xz", "-yz", "-zz"
-        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "x--", kappa(1,:,:)
-        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "y--", kappa(2,:,:)
-        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "z--", kappa(3,:,:)
+        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "x--", kappa(1,:,:) / lo_time_au_to_fs
+        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "y--", kappa(2,:,:) / lo_time_au_to_fs
+        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "z--", kappa(3,:,:) / lo_time_au_to_fs
+        write(*,*) 'Angular momentum transport matrix: (units: J/m^1/K)'
+        write(*, "(5x,3(3(a14,1x),1x))") "-xx", "-yx", "-zx", "-xy", "-yy", "-zy", "-xz", "-yz", "-zz"
+        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "x--", kappa(1,:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m
+        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "y--", kappa(2,:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m
+        write(*, "(1x,a3,1x,3(3(e14.6,1x),1x))") "z--", kappa(3,:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m
+
+        ! Output to some outfile
+        u = open_file('out', 'outfile.phangmom')
+        write(u,*) 'Heat conductivity matrix: (units: W/m/K)'
+        write(u, "(1x,3(3(f10.6,1x),1x))") kappa_th(:,:)*lo_kappa_au_to_SI
+        write(u,*) 'Angular momentum generation matrix: (units: hbar/bohr^2/K)'
+        write(u, "(1x,3(3(f10.6,1x),1x))") g(:,:)
+        write(u,*) 'Angular momentum generation matrix: (units: Js/m^2/K)'
+        write(u, "(1x,3(3(e14.6,1x),1x))") g(:,:) * lo_hbar_Joule / lo_bohr_to_m**2
+        write(u,*) 'Ang. mom. torque matrix: (units: hbar/fs/bohr^2/K)'
+        write(u, "(1x,3(3(e14.8,1x),1x))") torque(:,:) / lo_time_au_to_fs
+        write(u,*) 'Ang. mom. torque matrix: (units: J/m^2/K)'
+        write(u, "(1x,3(3(e14.6,1x),1x))") torque(:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2
+        write(u,*) 'Ang. mom. cRTA torque matrix: (units: hbar/fs/bohr^2/K)'
+        write(u, "(1x,3(3(e14.8,1x),1x))") torque_cRTA(:,:) / lo_time_au_to_fs
+        write(u,*) 'Ang. mom. cRTA torque matrix: (units: J/m^2/K)'
+        write(u, "(1x,3(3(e14.6,1x),1x))") torque_cRTA(:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m**2
+        write(u,*) 'Angular momentum transport matrix: (units: hbar/fs/bohr^1/K)'
+        write(u, "(5x,3(3(a14,1x),1x))") "-xx", "-yx", "-zx", "-xy", "-yy", "-zy", "-xz", "-yz", "-zz"
+        write(u, "(1x,a3,1x,3(3(e14.6,1x),1x))") "x--", kappa(1,:,:) / lo_time_au_to_fs
+        write(u, "(1x,a3,1x,3(3(e14.6,1x),1x))") "y--", kappa(2,:,:) / lo_time_au_to_fs
+        write(u, "(1x,a3,1x,3(3(e14.6,1x),1x))") "z--", kappa(3,:,:) / lo_time_au_to_fs
+        write(u,*) 'Angular momentum transport matrix: (units: J/m^1/K)'
+        write(u, "(5x,3(3(a14,1x),1x))") "-xx", "-yx", "-zx", "-xy", "-yy", "-zy", "-xz", "-yz", "-zz"
+        write(u, "(1x,a3,1x,3(3(e14.6,1x),1x))") "x--", kappa(1,:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m
+        write(u, "(1x,a3,1x,3(3(e14.6,1x),1x))") "y--", kappa(2,:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m
+        write(u, "(1x,a3,1x,3(3(e14.6,1x),1x))") "z--", kappa(3,:,:) * lo_hbar_Joule / lo_time_au_to_s / lo_bohr_to_m
+        close (u)
     endif
 
     contains

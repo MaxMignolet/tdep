@@ -48,8 +48,8 @@ real(flyt), parameter :: lo_m_to_bohr=1.0_flyt/lo_bohr_to_m
 real(flyt), parameter :: lo_bohr_to_A=0.52917721067_flyt
 real(flyt), parameter :: lo_A_to_bohr=1.0_flyt/lo_bohr_to_A
 !> Planck constant
-real(flyt), parameter :: lo_hbar_eV=6.582119514E-16_flyt
-real(flyt), parameter :: lo_hbar_Joule=lo_hbar_eV*lo_eV_to_Joule
+real(flyt), parameter :: lo_hbar_eV=6.582119514E-16_flyt ! hbar to eV*s
+real(flyt), parameter :: lo_hbar_Joule=lo_hbar_eV*lo_eV_to_Joule ! hbar to J*s
 real(flyt), parameter :: lo_hbar_Hartree=lo_hbar_eV*lo_eV_to_Hartree
 !> Boltzmann constant
 real(flyt), parameter :: lo_kb_eV=8.6173303E-5_flyt
